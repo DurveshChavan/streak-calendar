@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# This project keeps its history human-only: reject commits that credit an AI tool as author/co-author.
+if grep -qiE '^(co-authored-by|signed-off-by):.*(claude|anthropic)|claude\.ai/code|generated with .*claude' "$1"; then
+  echo "commit-msg: AI attribution trailers are not allowed in this repo." >&2
+  exit 1
+fi

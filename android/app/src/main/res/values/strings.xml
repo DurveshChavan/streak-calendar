@@ -1,0 +1,9 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Streak Calendar</string>
+    <string name="title_activity_main">Streak Calendar</string>
+    <string name="package_name">app.streakcalendar</string>
+    <string name="custom_url_scheme">app.streakcalendar</string>
+    <string name="widget_label">Streak Calendar</string>
+    <string name="widget_description">Habit 1 streak and this month's calendar</string>
+</resources>

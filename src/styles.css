@@ -1,0 +1,26 @@
+:root{--bg:#B7D8F5;--c30:#E10600;--c10:#FFD700;--ink:#14161A;--glass:rgba(183,216,245,.6);--card30:rgba(225,6,0,.88);--red:#B00000;--line:rgba(20,22,26,.16);--cell:rgba(255,255,255,.42);--tick:#0E8A43;--cross:#E10600;--contour:rgba(20,22,26,.12)}
+[data-theme="dark"]{--bg:#030303;--c30:#5245F8;--c10:#F9B318;--ink:#F4F6FA;--glass:rgba(3,3,3,.58);--card30:rgba(82,69,248,.9);--red:#FF6B5E;--line:rgba(244,246,250,.16);--cell:rgba(255,255,255,.07);--tick:#13994C;--cross:#E5322A;--contour:rgba(244,246,250,.1)}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Helvetica,Roboto,sans-serif;-webkit-tap-highlight-color:transparent;transition:background .3s,color .3s;height:100%;overflow:hidden;overscroll-behavior:none}
+button{font:inherit;color:inherit}
+button:focus-visible,textarea:focus-visible,input:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+a{color:var(--ink)}a:hover{color:var(--red)}
+@keyframes sheetUp{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes sheetDown{to{transform:translateY(40px);opacity:0}}
+@keyframes fadeOut{to{opacity:0}}
+@keyframes toastIn{from{transform:translate(-50%,24px);opacity:0}to{transform:translate(-50%,0);opacity:1}}
+@keyframes toastOut{to{transform:translate(-50%,16px);opacity:0}}
+@keyframes rise{from{transform:translateY(10px);opacity:0}to{transform:none;opacity:1}}
+.rise{animation:rise .42s cubic-bezier(.2,.8,.2,1) backwards}
+.glassfade{transition:background-color .35s ease,border-color .35s ease,color .35s ease,scale .15s ease}
+.disc{transition:transform 1.1s cubic-bezier(.2,.8,.2,1),background-color .35s ease,border-color .35s ease}
+button{transition:scale .15s ease}
+button:active{scale:.96}
+.tap{transition:opacity .15s!important}
+.tap:active{opacity:.55!important}
+.app{--vh:100vh;height:100vh;touch-action:pinch-zoom;--c:max(34px,min(calc((min(100vw,560px) - 80px)/6),calc((var(--vh) - 314px - var(--wn) - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))/7)))}
+@supports (height:100dvh){.app{--vh:100dvh;height:100dvh}}
+.hol3,.hol4{display:none!important}
+@container cards (min-height:158px){.hol3{display:flex!important}}
+@container cards (min-height:200px){.hol4{display:flex!important}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
