@@ -5,5 +5,5 @@
     <string name="package_name">app.streakcalendar</string>
     <string name="custom_url_scheme">app.streakcalendar</string>
     <string name="widget_label">Streak Calendar</string>
-    <string name="widget_description">Habit 1 streak and this month's calendar</string>
+    <string name="widget_description">Habit 1 streak and the calendar for this month</string>
 </resources>
