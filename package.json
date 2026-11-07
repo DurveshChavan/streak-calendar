@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "server": "node server/index.mjs",
-    "test": "node --experimental-strip-types --test server/sync.test.mjs src/lib/streaks.test.ts",
+    "test": "node --experimental-strip-types --test server/sync.test.mjs src/lib/streaks.test.ts src/lib/backup.test.ts",
     "cap:sync": "npm run build && cap sync android",
     "android:apk": "npm run cap:sync && cd android && ./gradlew assembleDebug",
     "android:run": "npm run cap:sync && cap run android",
@@ -16,12 +16,14 @@
   },
   "dependencies": {
     "@capacitor/android": "^7.0.0",
+    "@capacitor/app": "^7.1.2",
     "@capacitor/core": "^7.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "@capacitor/cli": "^7.0.0",
+    "@fontsource/roboto": "^5.3.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",

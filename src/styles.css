@@ -18,9 +18,24 @@ button{transition:scale .15s ease}
 button:active{scale:.96}
 .tap{transition:opacity .15s!important}
 .tap:active{opacity:.55!important}
-.app{--vh:100vh;height:100vh;touch-action:pinch-zoom;--c:max(34px,min(calc((min(100vw,560px) - 80px)/6),calc((var(--vh) - 314px - var(--wn) - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))/7)))}
+.app{--vh:100vh;height:100vh;touch-action:pinch-zoom;--reserve:314px;--c:max(28px,min(calc((var(--cw,min(100vw,560px)) - 80px)/6),calc((var(--vh) - var(--reserve) - var(--wn) - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))/7)));position:relative;z-index:1;max-width:560px;margin:0 auto;padding:max(8px,env(safe-area-inset-top)) 8px max(8px,env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:8px;box-sizing:border-box}
+.main{display:flex;flex-direction:column;gap:8px;flex:none;min-width:0}
+.cards{flex:1 1 0;min-height:0;container-type:size;container-name:cards;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
+/* split screen / pop-up view: short windows drop the cards (and, shorter still, the week numbers) so the month always fits */
+@media (max-height:560px){.app{--reserve:196px;overflow-y:auto;touch-action:pan-y pinch-zoom}.cards{display:none}}
+@media (max-height:470px){.app{--wn:0px!important}.wkn{display:none}}
+/* wide, short windows (landscape, side-by-side split): calendar on the left, cards stacked on the right */
+@media (max-height:380px) and (max-aspect-ratio:5/4){.navrow{display:none!important}.app{--reserve:132px}}
+@media (min-width:600px) and (min-aspect-ratio:5/4){
+  .app{display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);grid-template-areas:"cal head" "cal cards";max-width:980px;--reserve:116px;--cw:min(58vw,560px)}
+  .main{display:contents}.main>header{grid-area:head}.main>section{grid-area:cal;align-self:start}
+  .cards{grid-area:cards;display:grid}
+}
 @supports (height:100dvh){.app{--vh:100dvh;height:100dvh}}
 .hol3,.hol4{display:none!important}
 @container cards (min-height:158px){.hol3{display:flex!important}}
 @container cards (min-height:200px){.hol4{display:flex!important}}
+/* theme toggle: everything swaps in one frame; the View Transition cross-fades the two snapshots */
+.theme-swap,.theme-swap *,.theme-swap *::before,.theme-swap *::after{transition:none!important}
+::view-transition-old(root),::view-transition-new(root){animation-duration:.28s;animation-timing-function:ease}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}

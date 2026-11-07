@@ -1,7 +1,12 @@
 import React from 'react'
+import { flushSync } from 'react-dom'
+import { Capacitor } from '@capacitor/core'
+import { App as NativeApp } from '@capacitor/app'
 import { MONTHS, WD, pad, keyOf, parse, holiday, holidaysFor, isoWeek, dayOfYear, short, panchang, tithiLabel } from './lib/calendar'
 import { streaks as calcStreaks, peaks as calcPeaks, nextMs, type Marks, type Mark } from './lib/streaks'
 import { store, type Doc, type Habit } from './lib/store'
+import { setSystemBars } from './lib/widget'
+import { makeBackup, parseBackup, mergeBackup, countOf, type Parsed } from './lib/backup'
 
 const FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Roboto,sans-serif"
 const EASE = 'cubic-bezier(.2,.8,.2,1)'
@@ -50,12 +55,14 @@ interface State {
   toast: { k: string; prev: Mark | null; hid: string; text: string } | null; toastOut: boolean; closing: boolean; instant: boolean
   hOpen: boolean; hClosing: boolean; editId: string | null; editName: string; confirmId: string | null; newName: string
   syncOpen: boolean; syncUrl: string; syncToken: string
+  bkOpen: boolean; bkText: string; bkMsg: string; bkPending: Parsed | null
 }
 
 export default class App extends React.Component<Props, State> {
   raf: Record<string, number> = {}; rt: Record<string, any> = {}
   tt: any; to: any; ct: any; hct: any; tnt: any; stt: any
   g: any = null; bg: any = null; bSwiped = false; peak: any = null; switching = false
+  dragged = false; scrimArmed = false; nt: any = null; noteDraft: { k: string; v: string } | null = null; barsDark: boolean | null = null
   nums: any = null; shown: any = null
 
   constructor(p: Props) {
@@ -63,20 +70,40 @@ export default class App extends React.Component<Props, State> {
     const d = store.doc, t = new Date()
     this.state = { y: t.getFullYear(), m: t.getMonth(), habits: d.habits, cur: d.cur, notes: d.notes, theme: d.theme,
       sel: null, drag: null, lastDrag: null, snap: null, turn: null, settle: null, toast: null, toastOut: false, closing: false, instant: false,
-      hOpen: false, hClosing: false, editId: null, editName: '', confirmId: null, newName: '', syncOpen: false, syncUrl: store.meta.url, syncToken: store.meta.token }
+      hOpen: false, hClosing: false, editId: null, editName: '', confirmId: null, newName: '', syncOpen: false, syncUrl: store.meta.url, syncToken: store.meta.token, bkOpen: false, bkText: '', bkMsg: '', bkPending: null }
     store.onRemote((doc: Doc) => this.setState({ habits: doc.habits, notes: doc.notes, cur: doc.cur }))
     store.onStatus(() => this.forceUpdate())
   }
-  componentDidMount() { this.applyTheme(); this.shown = this.nums; document.addEventListener('visibilitychange', this.onVis) }
+  componentDidMount() {
+    this.applyTheme(); this.shown = this.nums; document.addEventListener('visibilitychange', this.onVis)
+    // Android back closes the open sheet first, instead of leaving the app
+    if (Capacitor.isNativePlatform()) NativeApp.addListener('backButton', () => { if (this.state.sel) this.closeSheet(); else if (this.state.hOpen) this.closeHabits(); else NativeApp.minimizeApp() })
+  }
   componentDidUpdate() { this.applyTheme(); this.animNums() }
   componentWillUnmount() { [this.tt, this.to, this.ct, this.hct, this.tnt, this.stt].forEach(clearTimeout); Object.values(this.rt).forEach(clearTimeout); Object.values(this.raf).forEach(cancelAnimationFrame); document.removeEventListener('visibilitychange', this.onVis) }
   // the day rolls over while the app sits open in the background
   lastDay = keyOf(new Date())
-  onVis = () => { if (document.visibilityState === 'visible' && this.today() !== this.lastDay) { this.lastDay = this.today(); this.forceUpdate() } }
+  onVis = () => {
+    if (document.visibilityState === 'hidden') this.flushNote()
+    else if (this.today() !== this.lastDay) { this.lastDay = this.today(); this.forceUpdate() }
+  }
 
-  applyTheme() { const dark = this.state.theme === 'dark'; document.documentElement.dataset.theme = dark ? 'dark' : 'light'; const m = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement | null; if (m) m.content = dark ? '#030303' : '#B7D8F5' }
+  applyTheme() { const dark = this.state.theme === 'dark'; document.documentElement.dataset.theme = dark ? 'dark' : 'light'; const m = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement | null; if (m) m.content = dark ? '#030303' : '#B7D8F5'; if (this.barsDark !== dark) { this.barsDark = dark; setSystemBars(dark) } }
+  persist() { const s = this.state; store.commit({ habits: s.habits, cur: s.cur, notes: s.notes, theme: s.theme }) }
   save(patch: Partial<State>, after?: () => void) {
-    this.setState(patch as any, () => { const s = this.state; store.commit({ habits: s.habits, cur: s.cur, notes: s.notes, theme: s.theme }); if (after) after() })
+    this.setState(patch as any, () => { this.persist(); if (after) after() })
+  }
+  // Swap the theme instantly with every transition switched off, under one GPU cross-fade (View Transition).
+  // Letting hundreds of blurred glass elements transition their colours one by one is what made the toggle lag on Android.
+  toggleTheme = () => {
+    const theme: 'light' | 'dark' = this.state.theme === 'dark' ? 'light' : 'dark', root = document.documentElement, doc = document as any
+    const swap = () => { flushSync(() => this.setState({ theme })); this.persist() }
+    const done = () => requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('theme-swap')))
+    root.classList.add('theme-swap')
+    if (!this.rm() && typeof doc.startViewTransition === 'function') {
+      try { doc.startViewTransition(swap).finished.finally(done); return } catch { /* fall through to an instant swap */ }
+    }
+    swap(); done()
   }
   today() { return keyOf(new Date()) }
   hIdx(s = this.state) { const i = s.habits.findIndex(h => h.id === s.cur); return i < 0 ? 0 : i }
@@ -103,19 +130,44 @@ export default class App extends React.Component<Props, State> {
   settleGo(k: string) { clearTimeout(this.stt); this.stt = setTimeout(() => { this.setState({ settle: null, snap: k }); this.unsnap() }, 420) }
   unsnap() { requestAnimationFrame(() => requestAnimationFrame(() => { if (this.state.snap) this.setState({ snap: null }) })) }
 
-  onDown = (e: React.PointerEvent<HTMLButtonElement>) => { const k = e.currentTarget.dataset.key; if (!k || (e.button && e.button !== 0)) return; this.g = { k, x: e.clientX, y: e.clientY, id: e.pointerId, el: e.currentTarget, mode: null } }
-  onMove = (e: React.PointerEvent<HTMLButtonElement>) => {
+  // One handler on the calendar: a short left/right swipe on a day marks it (the cube turns); a long swipe (past
+  // ~2 cells), or any swipe that starts off the days, pages the month. Days open on click, not pointerup, so a tap's
+  // own trailing click can't land on the sheet's backdrop and close it straight away.
+  gDown = (e: React.PointerEvent<HTMLElement>) => {
+    if (e.button && e.button !== 0) return
+    const t = e.target as Element, cell = t.closest('[data-key]') as HTMLElement | null
+    this.dragged = false
+    if (!cell && t.closest('button')) return
+    this.g = { k: cell ? cell.dataset.key : null, x: e.clientX, y: e.clientY, id: e.pointerId, el: cell, box: e.currentTarget, mode: null, mx: 0,
+      T: Math.max(88, (cell ? cell.getBoundingClientRect().width : 44) * 2) }
+  }
+  gMove = (e: React.PointerEvent<HTMLElement>) => {
     const g = this.g; if (!g || g.id !== e.pointerId) return; const dx = e.clientX - g.x, dy = e.clientY - g.y
-    if (!g.mode) { if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy) * 1.2) { g.mode = 'h'; try { g.el.setPointerCapture(g.id) } catch { /* ignore */ } } else if (Math.abs(dy) > 8) g.mode = 'v' }
+    if (!g.mode) {
+      if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy) * 1.2) { g.mode = g.k ? 'h' : 'm'; this.dragged = true; try { g.box.setPointerCapture(g.id) } catch { /* ignore */ } }
+      else if (Math.abs(dy) > 8) { g.mode = 'v'; this.dragged = true }
+    }
+    if (g.mode === 'h' && Math.abs(dx) > g.T) { g.mode = 'm'; g.mx = dx; g.on = false; this.buzz(8); this.setState({ drag: null }) }
+    else if (g.mode === 'm' && g.k && Math.abs(dx) < g.T * .75) { g.mode = 'h'; this.page(0) }
     if (g.mode === 'h') { const on = Math.abs(dx) > 24; if (on !== !!g.on) { g.on = on; if (on) this.buzz(6) } const cx = Math.max(-40, Math.min(40, dx)), to = Math.sign(cx) * Math.min(1, Math.abs(cx) / 24) * 90; this.setState({ drag: { k: g.k, dx: cx, dur: turnTime(to - cubeAngle(g.el)) }, lastDrag: g.k }) }
+    else if (g.mode === 'm') this.page(dx - g.mx)
   }
-  onUp = (e: React.PointerEvent<HTMLButtonElement>) => {
-    const g = this.g; this.g = null; if (!g) return; const dx = e.clientX - g.x
+  gUp = (e: React.PointerEvent<HTMLElement>) => {
+    const g = this.g; this.g = null; if (!g || g.id !== e.pointerId) return; const dx = e.clientX - g.x
     if (g.mode === 'h') { this.setState({ drag: null }); if (Math.abs(dx) > 24) this.swipe(g.k, dx, g.el, 'drag') }
-    else if (!g.mode) this.open(g.k)
+    else if (g.mode === 'm') { if (Math.abs(dx) > (g.k ? g.T : 48)) { this.page(0); this.buzz(6); this.shift(dx < 0 ? 1 : -1) } else this.page(0, true) }
   }
-  onCancel = () => { this.g = null; this.setState({ drag: null }) }
-  onKey = (e: React.KeyboardEvent<HTMLButtonElement>) => { const k = e.currentTarget.dataset.key!; if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.open(k) } else if (e.key === 'ArrowRight') { e.preventDefault(); this.swipe(k, 1, e.currentTarget, 'auto') } else if (e.key === 'ArrowLeft') { e.preventDefault(); this.swipe(k, -1, e.currentTarget, 'auto') } }
+  gCancel = () => { const g = this.g; this.g = null; if (!g) return; this.setState({ drag: null }); if (g.mode === 'm') this.page(0, true) }
+  dayClick = (e: React.MouseEvent<HTMLButtonElement>) => { if (this.dragged) return; this.open(e.currentTarget.dataset.key!) }
+  onKey = (e: React.KeyboardEvent<HTMLButtonElement>) => { const k = e.currentTarget.dataset.key!; if (e.key === 'ArrowRight') { e.preventDefault(); this.swipe(k, 1, e.currentTarget, 'auto') } else if (e.key === 'ArrowLeft') { e.preventDefault(); this.swipe(k, -1, e.currentTarget, 'auto') } }
+  // while paging, the grid follows the finger; let go short of the threshold and it springs back
+  page(off: number, settle = false) {
+    const el = this.q('[data-anim="grid"]'); if (!el) return
+    const from = el.style.transform
+    el.style.transform = off ? `translateX(${(off * .6).toFixed(1)}px)` : ''
+    el.style.opacity = off ? String(Math.max(.45, 1 - Math.abs(off) / 360)) : ''
+    if (settle && from && !this.rm()) el.animate([{ transform: from }, { transform: 'none' }], { duration: 200, easing: EASE })
+  }
   bDown = (e: React.PointerEvent<HTMLButtonElement>) => { this.bSwiped = false; if (e.button && e.button !== 0) return; this.bg = { x: e.clientX, y: e.clientY, id: e.pointerId, el: e.currentTarget, mode: null } }
   bMove = (e: React.PointerEvent<HTMLButtonElement>) => { const g = this.bg; if (!g || g.id !== e.pointerId || g.mode) return; const dx = e.clientX - g.x, dy = e.clientY - g.y; if (Math.abs(dy) > 8 && Math.abs(dy) > Math.abs(dx)) { g.mode = 'v'; try { g.el.setPointerCapture(g.id) } catch { /* ignore */ } } }
   bUp = (e: React.PointerEvent<HTMLButtonElement>) => { const g = this.bg; this.bg = null; if (!g || g.mode !== 'v') return; this.bSwiped = true; const dy = e.clientY - g.y; if (Math.abs(dy) > 20) this.switchHabit(dy < 0 ? 1 : -1) }
@@ -179,7 +231,14 @@ export default class App extends React.Component<Props, State> {
     if (t) t.animate([{ transform: `translateX(${dir * 14}px)`, opacity: 0 }, { transform: 'none', opacity: 1 }], o)
   }
   hideToast() { clearTimeout(this.tt); if (!this.state.toast) return; if (this.rm()) { this.setState({ toast: null, toastOut: false }); return } this.setState({ toastOut: true }); clearTimeout(this.to); this.to = setTimeout(() => this.setState({ toast: null, toastOut: false }), 180) }
-  closeSheet() { if (this.state.closing || !this.state.sel) return; if (this.rm()) { this.setState({ sel: null }); return } this.setState({ closing: true }); clearTimeout(this.ct); this.ct = setTimeout(() => this.setState({ sel: null, closing: false }), 200) }
+  closeSheet() { this.flushNote(); if (this.state.closing || !this.state.sel) return; if (this.rm()) { this.setState({ sel: null }); return } this.setState({ closing: true }); clearTimeout(this.ct); this.ct = setTimeout(() => this.setState({ sel: null, closing: false }), 200) }
+  // notes save while typing (debounced) so nothing is lost if the app is closed mid-note
+  noteInput(k: string, v: string) { this.noteDraft = { k, v }; clearTimeout(this.nt); this.nt = setTimeout(() => this.flushNote(), 400) }
+  flushNote() {
+    clearTimeout(this.nt); const d = this.noteDraft; this.noteDraft = null
+    if (!d || d.v === (this.state.notes[d.k] || '')) return
+    const notes = { ...this.state.notes }; if (d.v) notes[d.k] = d.v; else delete notes[d.k]; this.save({ notes })
+  }
   sting() {
     if (this.rm()) return; const b = this.q('[data-anim="badge"]'), d = this.q('[data-anim="drain"]')
     if (b) b.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-7px)', offset: .15 }, { transform: 'translateX(6px)', offset: .35 }, { transform: 'translateX(-4px)', offset: .55 }, { transform: 'translateX(2px)', offset: .75 }, { transform: 'translateX(0)' }], { duration: 460, easing: 'ease-out' })
@@ -243,6 +302,26 @@ export default class App extends React.Component<Props, State> {
     this.hideToast()
   }
 
+  // ---- backup ----
+  copyBackup = async () => {
+    const s = this.state, text = makeBackup({ habits: s.habits, cur: s.cur, notes: s.notes, theme: s.theme }), c = countOf(s)
+    let done = false
+    try { await navigator.clipboard.writeText(text); done = true } catch { /* fall back below */ }
+    if (!done) {
+      const ta = document.createElement('textarea'); ta.value = text; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;top:0;opacity:0'
+      document.body.appendChild(ta); ta.select(); try { done = document.execCommand('copy') } catch { done = false } ta.remove()
+    }
+    this.setState({ bkMsg: done ? `Backup copied: ${c.habits} habit${c.habits === 1 ? '' : 's'}, ${c.marks} marks. Paste it somewhere safe, like a note or an email to yourself.` : 'Couldn’t copy on this device.' })
+  }
+  checkBackup = () => { const p = parseBackup(this.state.bkText); this.setState({ bkPending: p, bkMsg: p ? '' : 'That isn’t a Streak Calendar backup. Paste the whole text, starting with {' }) }
+  applyBackup = () => {
+    const s = this.state, p = s.bkPending; if (!p) return
+    const d = mergeBackup({ habits: s.habits, cur: s.cur, notes: s.notes, theme: s.theme }, p), c = countOf(p)
+    this.switching = true
+    this.save({ habits: d.habits, notes: d.notes, bkPending: null, bkOpen: false, bkText: '', bkMsg: `Restored ${c.habits} habit${c.habits === 1 ? '' : 's'} and ${c.marks} marks.` }, () => { this.switching = false })
+    this.buzz(12)
+  }
+
   // ---- sync ----
   syncLabel() {
     const st = store.state
@@ -286,7 +365,7 @@ export default class App extends React.Component<Props, State> {
     }
     const st = this.streaks(M), nx = nextMs(st.cur)
     this.nums = { streak: st.cur, best: st.best, mt, mx, bar: +Math.min(1, st.cur / nx).toFixed(3) }
-    const seed = s.y * 12 + s.m + (dark ? 5 : 0), off = (i: number, r: number) => { const v = Math.sin(seed * 12.9898 + i * 78.233) * 43758.5453; return Math.round((v - Math.floor(v) - .5) * 2 * r) + 'px' }
+    const seed = s.y * 12 + s.m, off = (i: number, r: number) => { const v = Math.sin(seed * 12.9898 + i * 78.233) * 43758.5453; return Math.round((v - Math.floor(v) - .5) * 2 * r) + 'px' }
     const upcoming: any[] = []; const ty = +t.slice(0, 4)
     ;[ty, ty + 1].forEach(y => Object.entries(holidaysFor(y)).sort().forEach(([k, n]) => { if (k >= t && upcoming.length < 4) { const d = parse(k); const diff = Math.round((+d - +parse(t)) / 864e5); upcoming.push({ key: k, cls: 'hol' + (upcoming.length + 1), name: n.join(' · '), when: short(d) + (diff === 0 ? ' · today' : diff === 1 ? ' · tomorrow' : diff < 31 ? ' · in ' + diff + ' days' : '') }) } }))
     const dots: any[] = []; if (nH > 1) { const W = 5, a0 = nH <= W ? 0 : Math.min(Math.max(0, hi - 2), nH - W), a1 = Math.min(nH, a0 + W); for (let i = a0; i < a1; i++) { const edge = nH > W && ((i === a0 && a0 > 0) || (i === a1 - 1 && a1 < nH)); dots.push({ s: i === hi ? 6 : edge ? 3 : 5, bg: i === hi ? '#14161A' : 'rgba(20,22,26,.32)' }) } }
@@ -314,8 +393,9 @@ export default class App extends React.Component<Props, State> {
       [{ width: 380, height: 380, borderRadius: '50%', border: '1px solid var(--contour)', bottom: -170, left: '18%' }, bgC],
     ]
     const lbl: React.CSSProperties = { font: `500 11px/1 ${FONT}`, letterSpacing: '.08em', textTransform: 'uppercase' }
-    const sheet = (open: boolean, closing: boolean): React.CSSProperties => ({ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 21, maxWidth: 560, maxHeight: '88vh', overflow: 'auto', margin: '0 auto', padding: '10px 18px max(20px, env(safe-area-inset-bottom))', boxSizing: 'border-box', borderRadius: '26px 26px 0 0', ...glass(30, 1.4), borderBottom: 0, display: 'flex', flexDirection: 'column', animation: closing ? 'sheetDown .2s cubic-bezier(.4,0,1,1) forwards' : 'sheetUp .25s cubic-bezier(.2,.8,.2,1)' })
-    const scrim = (closing: boolean): React.CSSProperties => ({ position: 'fixed', inset: 0, zIndex: 20, background: 'rgba(0,0,0,.3)', animation: closing ? 'fadeOut .2s ease forwards' : 'fadeIn .2s ease' })
+    const sheet = (open: boolean, closing: boolean): React.CSSProperties => ({ position: 'fixed', left: 0, right: 0, bottom: 'var(--kb, 0px)', zIndex: 21, maxWidth: 560, maxHeight: 'min(88vh, calc(100vh - var(--kb, 0px) - 12px))', overflow: 'auto', overscrollBehavior: 'contain', transition: 'bottom .22s cubic-bezier(.2,.8,.2,1), max-height .22s cubic-bezier(.2,.8,.2,1)', margin: '0 auto', padding: '10px 18px max(20px, env(safe-area-inset-bottom))', boxSizing: 'border-box', borderRadius: '26px 26px 0 0', ...glass(30, 1.4), borderBottom: 0, display: 'flex', flexDirection: 'column', animation: closing ? 'sheetDown .2s cubic-bezier(.4,0,1,1) forwards' : 'sheetUp .25s cubic-bezier(.2,.8,.2,1)' })
+    const scrim = (closing: boolean, close: () => void): any => ({ 'data-scrim': '1', onPointerDown: () => { this.scrimArmed = true }, onClick: () => { if (this.scrimArmed) close(); this.scrimArmed = false },
+      style: { position: 'fixed', inset: 0, zIndex: 20, background: 'rgba(0,0,0,.3)', animation: closing ? 'fadeOut .2s ease forwards' : 'fadeIn .2s ease' } })
     const rowBtn: React.CSSProperties = { width: 38, height: 38, flex: 'none', display: 'grid', placeItems: 'center', padding: 0, borderRadius: 12, border: '1px solid var(--line)', background: 'var(--cell)', cursor: 'pointer' }
     const ico = (d: string) => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={d} /></svg>
     const input: React.CSSProperties = { minWidth: 0, boxSizing: 'border-box', borderRadius: 12, border: '1px solid var(--line)', background: 'var(--cell)', color: 'var(--ink)', font: `400 16px/1 ${FONT}` }
@@ -330,7 +410,8 @@ export default class App extends React.Component<Props, State> {
           {discs.map(([st1, tr], i) => <div key={i} className="disc" style={{ position: 'absolute', ...st1, transform: tr }} />)}
         </div>
 
-        <div className="app" style={{ ['--wn' as any]: sw ? '18px' : '0px', position: 'relative', zIndex: 1, maxWidth: 560, margin: '0 auto', padding: 'max(8px, env(safe-area-inset-top)) 8px max(8px, env(safe-area-inset-bottom))', display: 'flex', flexDirection: 'column', gap: 8, boxSizing: 'border-box' }}>
+        <div className="app" style={{ ['--wn' as any]: sw ? '18px' : '0px' }}>
+          <div className="main">
 
           <header className="rise glassfade" style={{ flex: 'none', height: 64, boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '6px 7px 6px 16px', borderRadius: 20, ...glass() }}>
             <button className="tap" data-anim="title" onClick={goToday} aria-label="Go to today" style={{ all: 'unset', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
@@ -357,14 +438,14 @@ export default class App extends React.Component<Props, State> {
             </button>
           </header>
 
-          <section className="rise glassfade" style={{ animationDelay: '40ms', flex: 'none', padding: 10, borderRadius: 22, ...glass(), display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, height: 44 }}>
+          <section className="rise glassfade" onPointerDown={this.gDown} onPointerMove={this.gMove} onPointerUp={this.gUp} onPointerCancel={this.gCancel} style={{ animationDelay: '40ms', flex: 'none', padding: 10, borderRadius: 22, ...glass(), display: 'flex', flexDirection: 'column', gap: 8, touchAction: 'pinch-zoom' }}>
+            <div className="navrow" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, height: 44 }}>
               <div style={{ display: 'flex', gap: 6 }}>
                 <button className="glassfade" aria-label="Previous month" onClick={() => this.shift(-1)} style={{ ...sq(44), font: '300 24px/1 sans-serif' }}>‹</button>
                 <button className="glassfade" aria-label="Next month" onClick={() => this.shift(1)} style={{ ...sq(44), font: '300 24px/1 sans-serif' }}>›</button>
               </div>
               <div style={{ display: 'flex', gap: 6 }}>
-                <button className="glassfade" aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'} onClick={() => this.save({ theme: dark ? 'light' : 'dark' })} style={sq(44)}>
+                <button className="glassfade" aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'} onClick={this.toggleTheme} style={sq(44)}>
                   {dark
                     ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8" /></svg>
                     : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5z" /></svg>}
@@ -375,15 +456,15 @@ export default class App extends React.Component<Props, State> {
 
             <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4, width: 18, flex: 'none' }}>
-                {sw && <div style={{ height: 14 }} />}
+                {sw && <div className="wkn" style={{ height: 14 }} />}
                 {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => <div key={i} style={{ height: 'var(--c)', display: 'grid', placeItems: 'center', font: `${i === 0 ? 700 : 500} 14px/1 sans-serif`, color: i === 0 ? 'var(--red)' : undefined }}>{d}</div>)}
               </div>
               <div data-anim="grid" style={{ display: 'flex', gap: 4 }}>
                 {weeks.map((w: any, wi: number) => (
                   <div key={wi} style={{ width: 'var(--c)', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    {sw && <div style={{ height: 14, textAlign: 'center', font: '400 10px/14px ui-monospace,Menlo,monospace' }}>{w.wk}</div>}
+                    {sw && <div className="wkn" style={{ height: 14, textAlign: 'center', font: '400 10px/14px ui-monospace,Menlo,monospace' }}>{w.wk}</div>}
                     {w.days.map((d: any) => (
-                      <button key={d.key} data-key={d.key} data-day={d.key} aria-label={d.aria} onPointerDown={this.onDown} onPointerMove={this.onMove} onPointerUp={this.onUp} onPointerCancel={this.onCancel} onKeyDown={this.onKey} onContextMenu={e => e.preventDefault()}
+                      <button key={d.key} data-key={d.key} data-day={d.key} aria-label={d.aria} onClick={this.dayClick} onKeyDown={this.onKey} onContextMenu={e => e.preventDefault()}
                         style={{ width: 'var(--c)', height: 'var(--c)', padding: 0, position: 'relative', zIndex: d.z, border: 0, borderRadius: 12, background: 'none', cursor: 'pointer', touchAction: 'pinch-zoom', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none', opacity: d.op, perspective: 'calc(var(--c) * 4)', font: `${d.weight} clamp(14px, calc(var(--c) * .36), 22px)/1 ${FONT}` } as React.CSSProperties}>
                         <span style={{ position: 'absolute', inset: 0, display: 'block', transformStyle: 'preserve-3d', transform: `translateZ(calc(var(--c) / -2)) rotateY(${d.ang}deg)`, transition: d.cubeTr }}>
                           <CubeFace name="f" v={d.f} num={d.num} />
@@ -397,8 +478,9 @@ export default class App extends React.Component<Props, State> {
               </div>
             </div>
           </section>
+          </div>
 
-          <div className="rise" style={{ animationDelay: '80ms', flex: '1 1 0', minHeight: 0, containerType: 'size', containerName: 'cards', display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: 8 } as React.CSSProperties}>
+          <div className="rise cards" style={{ animationDelay: '80ms' }}>
             <section data-anim="monthcard" className="glassfade" style={{ padding: '11px 14px', borderRadius: 20, background: 'var(--card30)', color: '#fff', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', display: 'flex', flexDirection: 'column', gap: 8, minHeight: 0, overflow: 'hidden' }}>
               <div style={lbl}>This month</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -420,14 +502,14 @@ export default class App extends React.Component<Props, State> {
         </div>
 
         {s.toast && (
-          <div role="status" style={{ position: 'fixed', left: '50%', bottom: 'max(18px, env(safe-area-inset-bottom))', transform: 'translateX(-50%)', zIndex: 15, display: 'flex', alignItems: 'center', gap: 12, padding: '8px 8px 8px 16px', borderRadius: 16, background: '#14161A', color: '#F4F6FA', boxShadow: '0 8px 24px rgba(0,0,0,.25)', animation: s.toastOut ? 'toastOut .18s ease forwards' : 'toastIn .24s cubic-bezier(.2,.8,.2,1)', whiteSpace: 'nowrap' }}>
+          <div role="status" style={{ position: 'fixed', left: '50%', bottom: 'calc(max(18px, env(safe-area-inset-bottom)) + var(--kb, 0px))', transform: 'translateX(-50%)', zIndex: 15, display: 'flex', alignItems: 'center', gap: 12, padding: '8px 8px 8px 16px', borderRadius: 16, background: '#14161A', color: '#F4F6FA', boxShadow: '0 8px 24px rgba(0,0,0,.25)', animation: s.toastOut ? 'toastOut .18s ease forwards' : 'toastIn .24s cubic-bezier(.2,.8,.2,1)', whiteSpace: 'nowrap' }}>
             <span style={{ font: `400 14px/1.2 ${FONT}` }}>{s.toast.text}</span>
             <button onClick={this.undo} style={{ ...btnY, height: 36, padding: '0 14px', borderRadius: 10, font: `600 14px/1 ${FONT}` }}>Undo</button>
           </div>
         )}
 
         {s.sel && sel && (<>
-          <div onClick={() => this.closeSheet()} style={scrim(s.closing)} />
+          <div {...scrim(s.closing, () => this.closeSheet())} />
           <div role="dialog" aria-label="Day details" style={{ ...sheet(true, s.closing), gap: 14 }}>
             <div style={{ width: 40, height: 4, borderRadius: 2, background: 'var(--line)', margin: '0 auto' }} />
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
@@ -450,13 +532,13 @@ export default class App extends React.Component<Props, State> {
               <button className="glassfade" onClick={() => this.setMark(s.sel!, 'x')} style={{ height: 48, borderRadius: 14, cursor: 'pointer', font: `500 15px/1 ${FONT}`, border: '1px solid var(--line)', background: sel.mark === 'x' ? 'var(--cross)' : 'var(--cell)', color: sel.mark === 'x' ? '#fff' : 'var(--ink)' }}>✕ Missed</button>
               <button className="glassfade" onClick={() => this.setMark(s.sel!, null)} style={{ height: 48, padding: '0 14px', borderRadius: 14, cursor: 'pointer', font: `400 14px/1 ${FONT}`, border: '1px solid var(--line)', background: 'var(--cell)' }}>Clear</button>
             </div>
-            <textarea key={s.sel} defaultValue={sel.note} placeholder="Add a note for this day…" rows={3} onBlur={e => { const notes = { ...this.state.notes }, v = e.target.value; if (v) notes[s.sel!] = v; else delete notes[s.sel!]; if (v !== (this.state.notes[s.sel!] || '')) this.save({ notes }) }}
+            <textarea key={s.sel} defaultValue={sel.note} placeholder="Add a note for this day…" rows={3} onInput={e => this.noteInput(s.sel!, (e.target as HTMLTextAreaElement).value)} onBlur={() => this.flushNote()}
               style={{ width: '100%', boxSizing: 'border-box', resize: 'none', padding: '12px 14px', borderRadius: 14, border: '1px solid var(--line)', background: 'var(--cell)', color: 'var(--ink)', font: `300 16px/1.4 ${FONT}` }} />
           </div>
         </>)}
 
         {s.hOpen && (<>
-          <div onClick={() => this.closeHabits()} style={scrim(s.hClosing)} />
+          <div {...scrim(s.hClosing, () => this.closeHabits())} />
           <div role="dialog" aria-label="Habits" style={{ ...sheet(true, s.hClosing), gap: 12 }}>
             <div style={{ width: 40, height: 4, borderRadius: 2, background: 'var(--line)', margin: '0 auto' }} />
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
@@ -510,6 +592,28 @@ export default class App extends React.Component<Props, State> {
                   <button className="glassfade" onClick={() => store.configure(s.syncUrl, s.syncToken)} style={{ ...btnY, flex: 1, height: 44, borderRadius: 12 }}>{store.enabled ? 'Update & sync' : 'Connect'}</button>
                   {store.enabled && <button className="glassfade" onClick={() => { store.disconnect(); this.setState({ syncUrl: '', syncToken: '' }) }} style={{ ...btnG, height: 44, padding: '0 14px', borderRadius: 12 }}>Disconnect</button>}
                 </div>
+              </div>
+            )}
+
+            <div style={lbl}>Backup</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="glassfade" onClick={this.copyBackup} style={{ ...btnG, flex: 1, height: 44, borderRadius: 12 }}>Copy backup</button>
+              <button className="glassfade" onClick={() => this.setState({ bkOpen: !s.bkOpen, bkMsg: '', bkPending: null })} aria-expanded={s.bkOpen} style={{ ...btnG, flex: 1, height: 44, borderRadius: 12 }}>Restore…</button>
+            </div>
+            {s.bkMsg && <div role="status" style={{ font: `300 13px/1.35 ${FONT}` }}>{s.bkMsg}</div>}
+            {s.bkOpen && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: 10, borderRadius: 14, border: '1px solid var(--line)', background: 'var(--cell)' }}>
+                {!s.bkPending ? (<>
+                  <textarea value={s.bkText} onChange={e => this.setState({ bkText: e.target.value })} aria-label="Backup text" placeholder="Paste a backup here" rows={3} spellCheck={false} autoCapitalize="off" autoCorrect="off"
+                    style={{ ...input, width: '100%', resize: 'none', padding: '10px 12px', font: `300 14px/1.35 ${FONT}` }} />
+                  <button className="glassfade" onClick={this.checkBackup} disabled={!s.bkText.trim()} style={{ ...btnY, height: 44, borderRadius: 12, opacity: s.bkText.trim() ? 1 : .5 }}>Restore</button>
+                </>) : (() => { const c = countOf(s.bkPending); return (<>
+                  <span style={{ font: `400 14px/1.35 ${FONT}` }}>{`Add ${c.habits} habit${c.habits === 1 ? '' : 's'}, ${c.marks} marks and ${c.notes} note${c.notes === 1 ? '' : 's'} to this phone? Nothing here is deleted; where both have the same day, the backup wins.`}</span>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button className="glassfade" onClick={this.applyBackup} style={{ ...btnY, flex: 1, height: 44, borderRadius: 12 }}>Restore</button>
+                    <button className="glassfade" onClick={() => this.setState({ bkPending: null })} style={{ ...btnG, height: 44, padding: '0 14px', borderRadius: 12 }}>Cancel</button>
+                  </div>
+                </>) })()}
               </div>
             )}
           </div>
