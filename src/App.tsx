@@ -62,7 +62,7 @@ export default class App extends React.Component<Props, State> {
   raf: Record<string, number> = {}; rt: Record<string, any> = {}
   tt: any; to: any; ct: any; hct: any; tnt: any; stt: any
   g: any = null; bg: any = null; bSwiped = false; peak: any = null; switching = false
-  dragged = false; scrimArmed = false; nt: any = null; noteDraft: { k: string; v: string } | null = null; barsDark: boolean | null = null
+  dragAt = 0; scrimArmed = false; nt: any = null; noteDraft: { k: string; v: string } | null = null; barsDark: boolean | null = null
   nums: any = null; shown: any = null
 
   constructor(p: Props) {
@@ -136,7 +136,6 @@ export default class App extends React.Component<Props, State> {
   gDown = (e: React.PointerEvent<HTMLElement>) => {
     if (e.button && e.button !== 0) return
     const t = e.target as Element, cell = t.closest('[data-key]') as HTMLElement | null
-    this.dragged = false
     if (!cell && t.closest('button')) return
     this.g = { k: cell ? cell.dataset.key : null, x: e.clientX, y: e.clientY, id: e.pointerId, el: cell, box: e.currentTarget, mode: null, mx: 0,
       T: Math.max(88, (cell ? cell.getBoundingClientRect().width : 44) * 2) }
@@ -144,8 +143,8 @@ export default class App extends React.Component<Props, State> {
   gMove = (e: React.PointerEvent<HTMLElement>) => {
     const g = this.g; if (!g || g.id !== e.pointerId) return; const dx = e.clientX - g.x, dy = e.clientY - g.y
     if (!g.mode) {
-      if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy) * 1.2) { g.mode = g.k ? 'h' : 'm'; this.dragged = true; try { g.box.setPointerCapture(g.id) } catch { /* ignore */ } }
-      else if (Math.abs(dy) > 8) { g.mode = 'v'; this.dragged = true }
+      if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy) * 1.2) { g.mode = g.k ? 'h' : 'm'; this.dragAt = Infinity; try { g.box.setPointerCapture(g.id) } catch { /* ignore */ } }
+      else if (Math.abs(dy) > 8) { g.mode = 'v'; this.dragAt = Infinity }
     }
     if (g.mode === 'h' && Math.abs(dx) > g.T) { g.mode = 'm'; g.mx = dx; g.on = false; this.buzz(8); this.setState({ drag: null }) }
     else if (g.mode === 'm' && g.k && Math.abs(dx) < g.T * .75) { g.mode = 'h'; this.page(0) }
@@ -154,11 +153,12 @@ export default class App extends React.Component<Props, State> {
   }
   gUp = (e: React.PointerEvent<HTMLElement>) => {
     const g = this.g; this.g = null; if (!g || g.id !== e.pointerId) return; const dx = e.clientX - g.x
+    if (g.mode) this.dragAt = Date.now()
     if (g.mode === 'h') { this.setState({ drag: null }); if (Math.abs(dx) > 24) this.swipe(g.k, dx, g.el, 'drag') }
     else if (g.mode === 'm') { if (Math.abs(dx) > (g.k ? g.T : 48)) { this.page(0); this.buzz(6); this.shift(dx < 0 ? 1 : -1) } else this.page(0, true) }
   }
-  gCancel = () => { const g = this.g; this.g = null; if (!g) return; this.setState({ drag: null }); if (g.mode === 'm') this.page(0, true) }
-  dayClick = (e: React.MouseEvent<HTMLButtonElement>) => { if (this.dragged) return; this.open(e.currentTarget.dataset.key!) }
+  gCancel = () => { const g = this.g; this.g = null; if (!g) return; if (g.mode) this.dragAt = Date.now(); this.setState({ drag: null }); if (g.mode === 'm') this.page(0, true) }
+  dayClick = (e: React.MouseEvent<HTMLButtonElement>) => { if (Date.now() - this.dragAt < 350) return; this.open(e.currentTarget.dataset.key!) }
   onKey = (e: React.KeyboardEvent<HTMLButtonElement>) => { const k = e.currentTarget.dataset.key!; if (e.key === 'ArrowRight') { e.preventDefault(); this.swipe(k, 1, e.currentTarget, 'auto') } else if (e.key === 'ArrowLeft') { e.preventDefault(); this.swipe(k, -1, e.currentTarget, 'auto') } }
   // while paging, the grid follows the finger; let go short of the threshold and it springs back
   page(off: number, settle = false) {
