@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Themed icon (Android 13+): the glass panel outline and the tick, drawn in one colour by the system. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M43,30H65A13 13 0 0 1 78,43V65A13 13 0 0 1 65,78H43A13 13 0 0 1 30,65V43A13 13 0 0 1 43,30Z"
+        android:strokeWidth="4"
+        android:strokeColor="#FF000000" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M44,55L51,62L65,47"
+        android:strokeWidth="5.5"
+        android:strokeColor="#FF000000"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>
