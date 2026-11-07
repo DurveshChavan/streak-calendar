@@ -1,44 +1,45 @@
 # Streak Calendar
 
-A glass habit-streak calendar for the web and Android, with one shared database and a transparent home-screen widget.
+A calm, glassy habit tracker for Android. Mark each day with a swipe, watch your streak grow, and keep it on your home screen with a see-through widget.
 
-- **Web / Android app**: React + Vite, wrapped for Android with Capacitor. Offline-first: everything is stored on the device and syncs when it can.
-- **Sync server** (`server/`): one small Node process + SQLite. It serves the web build *and* the sync API, so the website and the phone read and write the same data. Conflicts resolve per record, newest edit wins.
-- **Widget** (`android/.../StreakWidgetProvider.java`): fully transparent, tinted-glass panels showing the month calendar with the **first habit's streak** on top. Redraws whenever you mark a day and at midnight.
+<p>
+  <img src="docs/images/app-light.webp" width="250" alt="Streak Calendar in light mode">
+  <img src="docs/images/app-dark.webp" width="250" alt="Streak Calendar in dark mode">
+  <img src="docs/images/widget-4x6.webp" width="250" alt="The 4x6 home-screen widget">
+</p>
 
-## 1. Run the server (web + shared database)
+## Download
 
-```bash
-npm ci && npm run build
-SYNC_TOKEN=$(openssl rand -hex 24) npm run server      # keep this token; it is your password
-```
+1. On your Android phone, open the **[latest release](https://github.com/DurveshChavan/streak-calendar/releases/latest)**.
+2. Tap the **StreakCalendar-v… .apk** file to download it, then open it.
+3. If Android asks, allow your browser to install apps (**Settings → Install unknown apps**), then tap **Install**.
+   If Play Protect warns about an unknown developer, choose **More details → Install anyway**.
 
-Deploy it anywhere that runs Node 22 or Docker (`Dockerfile` included; mount a volume at `/data`). **Serve it over HTTPS** (Fly.io, Render, a VPS behind Caddy, or a Cloudflare Tunnel); the Android app only talks to HTTPS.
+Needs Android 6.0 or newer. To **update**, install the newer APK from Releases over the old one; your habits, marks and notes stay.
 
-Open the site, tap the streak badge, tap *Saved on this device · tap to sync*, enter the server URL and token. Do the same on the phone. From then on both stay in sync (on open, every 30 s while visible, and shortly after each change).
+## Using it
 
-## 2. Build and install the Android app (USB)
+- **Mark a day:** swipe a day **left** for ✓ done or **right** for ✕ missed. Swipe a marked day to clear it. **Undo** appears at the bottom.
+- **Change month:** swipe a long way across the calendar, or use **‹ ›**. Tap the month name to jump back to today.
+- **Day details and notes:** tap a day.
+- **Habits:** tap the yellow streak badge to add, rename, reorder or delete habits. Swipe the badge up or down to switch habit.
+- **Light or dark:** the moon / sun button.
+- Works in **split screen**, **pop-up view** and landscape.
 
-On your computer (Node 20+, JDK 21, Android Studio / SDK, `adb`), with the phone plugged in via USB-C and USB debugging on:
+## Home-screen widget
 
-```bash
-npm ci
-npm run android:install
-```
+1. Long-press an empty spot on the home screen → **Widgets** → **Streak Calendar**.
+2. Pick **4x4** (streak + calendar) or **4x6** (also this month's stats and the next holidays), and place it.
 
-This builds the debug APK and runs `adb install -r` on every connected device. Without a computer toolchain, push to GitHub: the **Android APK** workflow builds `app-debug.apk` as a downloadable artifact.
+- **Tap the streak badge** on the widget to show your next habit. Tap anywhere else to open the app.
+- **Long-press the widget → Settings** to set the **transparency** (0–100 %), the **theme** (match app, light or dark) and the **habit** it shows.
 
-## 3. Add the widget
+## Your data
 
-Long-press the home screen, **Widgets**, **Streak Calendar**, drag it out (4x4; resizable). The widget has no solid background: only the glass panels and the calendar are drawn. Android widgets cannot blur the wallpaper, so the "glass" is a light tint, a soft highlight and a hairline border. Theme (light/dark tint) follows the theme toggle in the app. Tapping the widget opens the app.
+- Everything stays on your phone. Nothing is sent anywhere unless you set up your own sync server.
+- **Back up:** tap the streak badge → **Copy backup**, and keep that text somewhere safe (a note, an email to yourself).
+- **Restore:** tap the streak badge → **Restore…**, paste the backup, then **Restore**. It adds to what is already there and never deletes anything, so it is also how you move to a new phone.
 
-## Develop
+## License
 
-```bash
-npm run dev            # Vite on :5173, proxies /api to :8787
-npm test               # sync server + streak logic
-```
-
-## Git
-
-History is human-only: `npm install` enables `.githooks/commit-msg`, which rejects AI co-author trailers.
+© 2026 Durvesh Chavan. All rights reserved. You may install and use the official app from Releases for personal use; nothing else is permitted without written permission. See [LICENSE](LICENSE).

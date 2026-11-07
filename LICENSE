@@ -1,0 +1,38 @@
+Streak Calendar - Proprietary License
+
+Copyright (c) 2026 Durvesh Chavan (github.com/DurveshChavan). All rights reserved.
+
+This repository and everything in it - source code, design, graphics, icons, text and the
+compiled apps (together, "the Software") - is the exclusive property of Durvesh Chavan and is
+protected by copyright law. Third-party open-source components that the Software includes
+remain under their own licenses; this license covers the owner's own work.
+
+1. NO RIGHTS ARE GRANTED except those stated in section 2. Without the owner's prior written
+   permission you may not, in whole or in part:
+   - copy, reproduce, modify, adapt, translate or create derivative works of the Software;
+   - publish, distribute, sublicense, sell, rent, lend or host the Software, or offer it as a
+     service;
+   - reverse engineer, decompile or disassemble the Software, except where applicable law
+     expressly allows this despite this restriction;
+   - remove or alter any copyright, ownership or license notice;
+   - use the Software, or any part of it, to train or improve machine-learning or AI models.
+
+2. PERSONAL USE OF THE OFFICIAL APP. You may download the official Streak Calendar app (APK)
+   from the Releases page of github.com/DurveshChavan/streak-calendar, install it on devices you
+   own or control, and use it for your own personal, non-commercial purposes. This permission
+   is personal, non-exclusive, non-transferable and revocable. It does not include the right to
+   redistribute the app or any modified version of it.
+
+3. VIEWING ON GITHUB. This repository may be publicly visible. Being able to view it, or to
+   fork it on GitHub as GitHub's Terms of Service allow, grants no right to use, copy, modify
+   or distribute the Software beyond what this license states.
+
+4. NO WARRANTY. The Software is provided "as is", without warranty of any kind, express or
+   implied, including merchantability, fitness for a particular purpose and non-infringement.
+   To the maximum extent permitted by law, the owner is not liable for any claim, damages,
+   loss of data or other liability arising from the Software or its use.
+
+5. TERMINATION. Any use outside this license automatically ends the permission in section 2,
+   and you must then delete every copy of the Software you have.
+
+For any other use, ask the owner for written permission via github.com/DurveshChavan.
