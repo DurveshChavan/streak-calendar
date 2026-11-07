@@ -29,10 +29,7 @@ tools/widget-preview/make-previews.sh
 
 ## Releases
 
-CI (`.github/workflows/android.yml`) builds a debug APK and runs all tests on every push. Pushing a tag `vX.Y.Z` builds the signed release and publishes it with the notes in `release-notes/vX.Y.Z.md`; the tag must match `versionName` in `android/app/build.gradle`, and `versionCode` must go up.
+CI (`.github/workflows/android.yml`) builds a debug APK and runs all tests on every push. Publishing a GitHub release with a new tag `vX.Y.Z` (Releases → Draft a new release → create the tag on publish, target `main`) builds the signed APK, attaches it and fills in the notes from `release-notes/vX.Y.Z.md`. The tag must match `versionName` in `android/app/build.gradle`, and `versionCode` must go up.
 
 Signing: one permanent key, protected by the `RELEASE_KEY_PASSWORD` repository secret. The first signed release creates it and saves it encrypted as `android/signing/release.p12.enc` (`scripts/ci-signing.sh`). Keep the password in a password manager: without it no further update can be signed, and a different key would force users to uninstall (and lose their data) to update.
 
-```bash
-git tag v2.0.1 && git push origin v2.0.1
-```

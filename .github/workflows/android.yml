@@ -2,7 +2,10 @@ name: Android APK
 on:
   push:
     branches: ['**']
-    tags: ['v*']
+  # publishing a release on GitHub (with a new tag such as v2.0.0) builds the signed APK and attaches it.
+  # Only this event builds releases, so the one-time signing-key creation can never run twice in parallel.
+  release:
+    types: [published]
   workflow_dispatch:
 permissions:
   contents: write
