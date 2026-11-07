@@ -25,7 +25,7 @@ jobs:
           set -o pipefail
           ./gradlew assembleDebug --stacktrace 2>&1 | tee build.log || {
             # surface the real error as annotations (readable on the run page without digging through logs)
-            grep -E "error:|e: |FAILURE|What went wrong|Caused by|> " build.log | head -40 | while IFS= read -r l; do echo "::error::$l"; done
+            { grep -E "\.java:[0-9]+: error|\.xml.*error|AAPT|error:" build.log | head -15; sed -n '/What went wrong/,/Try:/p' build.log | head -25; } | grep -v "^> Task" | while IFS= read -r l; do echo "::error::$l"; done
             exit 1
           }
       - uses: actions/upload-artifact@v4
