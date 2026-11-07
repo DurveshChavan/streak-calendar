@@ -19,8 +19,15 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npx cap sync android
-      - run: ./gradlew assembleDebug
+      - name: Build debug APK
         working-directory: android
+        run: |
+          set -o pipefail
+          ./gradlew assembleDebug --stacktrace 2>&1 | tee build.log || {
+            # surface the real error as annotations (readable on the run page without digging through logs)
+            grep -E "error:|e: |FAILURE|What went wrong|Caused by|> " build.log | head -40 | while IFS= read -r l; do echo "::error::$l"; done
+            exit 1
+          }
       - uses: actions/upload-artifact@v4
         with: { name: streak-calendar-debug-apk, path: android/app/build/outputs/apk/debug/app-debug.apk }
       - name: Publish APK as a downloadable release
