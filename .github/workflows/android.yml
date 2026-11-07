@@ -1,12 +1,19 @@
 name: Android APK
 on:
-  push: { branches: [main] }
+  push:
+    branches: ['**']
+    tags: ['v*']
   workflow_dispatch:
 permissions:
   contents: write
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 jobs:
   apk:
     runs-on: ubuntu-latest
+    env:
+      RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -15,26 +22,48 @@ jobs:
         with: { distribution: temurin, java-version: 21 }
       - name: Use the runner's preinstalled Android SDK
         run: echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+      - name: Tag matches the app version
+        if: env.RELEASE == 'true'
+        run: grep -q "versionName \"${GITHUB_REF_NAME#v}\"" android/app/build.gradle || { echo "::error::Tag $GITHUB_REF_NAME does not match versionName in android/app/build.gradle"; exit 1; }
       - run: npm ci
       - run: npm test
       - run: npm run build
       - run: npx cap sync android
-      - name: Build debug APK
+      - name: Release signing key
+        if: env.RELEASE == 'true'
+        env:
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: bash scripts/ci-signing.sh
+      - name: Build (unit tests + APK)
         working-directory: android
+        env:
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: |
           set -o pipefail
-          ./gradlew assembleDebug --stacktrace 2>&1 | tee build.log || {
+          if [ "$RELEASE" = true ]; then TASKS="testReleaseUnitTest assembleRelease"; else TASKS="testDebugUnitTest assembleDebug"; fi
+          ./gradlew $TASKS --stacktrace 2>&1 | tee build.log || {
             # surface the real error as annotations (readable on the run page without digging through logs)
-            { grep -E "\.java:[0-9]+: error|\.xml.*error|AAPT|error:" build.log | head -15; sed -n '/What went wrong/,/Try:/p' build.log | head -25; } | grep -v "^> Task" | while IFS= read -r l; do echo "::error::$l"; done
+            { grep -E "\.java:[0-9]+: error|\.xml.*error|AAPT|error:|FAILED" build.log | head -15; sed -n '/What went wrong/,/Try:/p' build.log | head -25; } | grep -v "^> Task" | while IFS= read -r l; do echo "::error::$l"; done
             exit 1
           }
+      - name: Name the APK
+        id: apk
+        run: |
+          if [ "$RELEASE" = true ]; then V="$GITHUB_REF_NAME"; SRC=android/app/build/outputs/apk/release/app-release.apk
+          else V="dev-$(git rev-parse --short HEAD)"; SRC=android/app/build/outputs/apk/debug/app-debug.apk; fi
+          cp "$SRC" "StreakCalendar-$V.apk" && echo "file=StreakCalendar-$V.apk" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v4
-        with: { name: streak-calendar-debug-apk, path: android/app/build/outputs/apk/debug/app-debug.apk }
-      - name: Publish APK as a downloadable release
+        with: { name: streak-calendar-apk, path: '${{ steps.apk.outputs.file }}' }
+      - name: Publish the release
+        if: env.RELEASE == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: latest
-          name: Latest APK
+          name: Streak Calendar ${{ github.ref_name }}
+          body_path: release-notes/${{ github.ref_name }}.md
+          files: ${{ steps.apk.outputs.file }}
           make_latest: true
-          body: Open this page on the phone and tap app-debug.apk to install.
-          files: android/app/build/outputs/apk/debug/app-debug.apk
+      - name: Mark the old 1.0 test build as superseded
+        if: env.RELEASE == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit latest --repo "$GITHUB_REPOSITORY" --prerelease --title "1.0 test build (superseded)" || true
