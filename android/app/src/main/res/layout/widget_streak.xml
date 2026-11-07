@@ -1,15 +1,46 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Fully transparent: the only pixels are the ones the renderer draws. -->
+<!-- Fully transparent: the only pixels are the ones the renderer draws. Tap areas sit on top: the streak badge
+     switches habit, everything else opens the app. Sizes match WidgetLayout.HEADER_DP / BADGE_HIT_DP. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@android:color/transparent">
+    android:layout_height="match_parent">
 
     <ImageView
         android:id="@+id/widget_image"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="@android:color/transparent"
-        android:contentDescription="@string/widget_description"
-        android:scaleType="fitCenter" />
+        android:scaleType="fitXY" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="64dp"
+            android:orientation="horizontal">
+
+            <FrameLayout
+                android:id="@+id/hit_header"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:contentDescription="@string/widget_open_app" />
+
+            <FrameLayout
+                android:id="@+id/hit_badge"
+                android:layout_width="150dp"
+                android:layout_height="match_parent"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/widget_next_habit" />
+        </LinearLayout>
+
+        <FrameLayout
+            android:id="@+id/hit_body"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:contentDescription="@string/widget_open_app" />
+    </LinearLayout>
 </FrameLayout>

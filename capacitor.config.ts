@@ -5,7 +5,7 @@ const config: CapacitorConfig = {
   appName: 'Streak Calendar',
   webDir: 'dist',
   backgroundColor: '#B7D8F5',
-  // keep the web content clear of the status/nav bars on every Android version (edge-to-edge is enforced on 15)
-  android: { allowMixedContent: false, adjustMarginsForEdgeToEdge: 'force' },
+  // system-bar and keyboard insets are handled in MainActivity (edge to edge on every Android version)
+  android: { allowMixedContent: false, adjustMarginsForEdgeToEdge: 'disable' },
 }
 export default config

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:configure="app.streakcalendar.WidgetSettingsActivity"
+    android:description="@string/widget_full_description"
+    android:initialLayout="@layout/widget_streak"
+    android:minWidth="250dp"
+    android:minHeight="400dp"
+    android:minResizeWidth="230dp"
+    android:minResizeHeight="280dp"
+    android:previewImage="@drawable/widget_preview_4x6"
+    android:resizeMode="horizontal|vertical"
+    android:targetCellWidth="4"
+    android:targetCellHeight="6"
+    android:updatePeriodMillis="1800000"
+    android:widgetCategory="home_screen"
+    android:widgetFeatures="reconfigurable|configuration_optional" />

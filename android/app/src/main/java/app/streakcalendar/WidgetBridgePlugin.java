@@ -7,9 +7,11 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
-/** Web layer -> widget: stores the latest habit-1 data and redraws any placed widgets. */
+/** Web layer -> native: widget data (all habits, theme, holidays) and the app theme for the system bars. */
 @CapacitorPlugin(name = "WidgetBridge")
 public class WidgetBridgePlugin extends Plugin {
+    static final String APP_DARK = "appDark";
+
     @PluginMethod
     public void update(PluginCall call) {
         String json = call.getString("json");
@@ -18,8 +20,16 @@ public class WidgetBridgePlugin extends Plugin {
             return;
         }
         Context ctx = getContext();
-        ctx.getSharedPreferences(StreakWidgetProvider.PREFS, Context.MODE_PRIVATE).edit().putString(StreakWidgetProvider.KEY, json).apply();
+        WidgetPrefs.sp(ctx).edit().putString(WidgetPrefs.DATA, json).apply();
         StreakWidgetProvider.refreshAll(ctx);
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void setTheme(PluginCall call) {
+        final boolean dark = Boolean.TRUE.equals(call.getBoolean("dark", false));
+        WidgetPrefs.sp(getContext()).edit().putBoolean(APP_DARK, dark).apply();
+        getActivity().runOnUiThread(() -> MainActivity.applySystemBars(getActivity(), dark));
         call.resolve();
     }
 }
