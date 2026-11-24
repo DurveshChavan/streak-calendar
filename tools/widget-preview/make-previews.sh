@@ -8,7 +8,7 @@ OUT=${1:-../../android/app/src/main/res/drawable-nodpi}
 CACHE=.cache; mkdir -p "$CACHE" "$OUT"
 [ -f "$CACHE/json.jar" ] || curl -sSfL -o "$CACHE/json.jar" https://repo.maven.apache.org/maven2/org/json/json/20240303/json-20240303.jar
 SRC=../../android/app/src/main/java/app/streakcalendar
-javac -nowarn -cp "$CACHE/json.jar" -d "$CACHE/classes" "$SRC/WidgetData.java" "$SRC/WidgetLayout.java" PreviewTool.java
+javac -nowarn -cp "$CACHE/json.jar" -d "$CACHE/classes" "$SRC/WidgetData.java" "$SRC/WidgetLayout.java" "$SRC/TimerState.java" PreviewTool.java
 # Typical Galaxy A54 cell sizes (dp) for a 4x4 and a 4x6 widget; rendered at 2.25x
 for spec in "4x4 370 456" "4x6 370 684"; do
   set -- $spec
