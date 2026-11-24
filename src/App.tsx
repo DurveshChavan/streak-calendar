@@ -25,12 +25,10 @@ import { makeBackup, parseBackup, mergeBackup, countOf, type Parsed } from './li
 
 import { FONT, EASE, glass, sq } from './ui/style'
 
-// on-screen angle of a day's cube, read mid-turn; the turn speed is capped from it
 function cubeAngle(btn: Element | null) { const c = btn && btn.firstElementChild; if (!c) return 0; try { const m = new DOMMatrix(getComputedStyle(c).transform); return Math.atan2(-m.m13, m.m11) * 180 / Math.PI } catch { return 0 } }
 const turnTime = (deg: number) => +Math.min(.4, Math.max(.06, Math.abs(deg) / 90 * .4)).toFixed(3)
 
 type Face = ReturnType<typeof faceVals> & { disp: string; tf: string; sh: string; shTr: string; tr: string; numTr: string; icoTr: string; dashTr: string; dashTr2: string }
-// One cube face showing the move from one mark to another (p = 0..1): date slides to the corner, tick or cross draws
 function faceVals(from: Mark | null, to: Mark | null, p: number, isToday: boolean, red: boolean) {
   const mix = (a: number, b: number) => a + (b - a) * p, nP = mix(from ? 1 : 0, to ? 1 : 0), tP = mix(from === 't' ? 1 : 0, to === 't' ? 1 : 0), xP = mix(from === 'x' ? 1 : 0, to === 'x' ? 1 : 0)
   const x1 = Math.min(1, xP / .6), x2 = Math.max(0, (xP - .4) / .6), n3 = nP.toFixed(3)
@@ -91,12 +89,10 @@ export default class App extends React.Component<Props, State> {
   componentDidMount() {
     this.syncTimer()
     this.applyTheme(); this.shown = this.nums; document.addEventListener('visibilitychange', this.onVis)
-    // Android back closes the open sheet first, instead of leaving the app
     if (Capacitor.isNativePlatform()) NativeApp.addListener('backButton', () => { if (this.state.hEdit) this.setState({ hEdit: null }); else if (this.state.sel) this.closeSheet(); else if (this.state.hOpen) this.closeHabits(); else NativeApp.minimizeApp() })
   }
   componentDidUpdate() { this.applyTheme(); this.animNums() }
   componentWillUnmount() { [this.tt, this.to, this.ct, this.hct, this.tnt, this.stt].forEach(clearTimeout); Object.values(this.rt).forEach(clearTimeout); Object.values(this.raf).forEach(cancelAnimationFrame); document.removeEventListener('visibilitychange', this.onVis) }
-  // the day rolls over while the app sits open in the background
   lastDay = keyOf(new Date())
   onVis = () => {
     if (document.visibilityState === 'hidden') this.flushNote()
@@ -110,15 +106,13 @@ export default class App extends React.Component<Props, State> {
   save(patch: Partial<State>, after?: () => void) {
     this.setState(patch as any, () => { this.persist(); if (after) after() })
   }
-  // Swap the theme instantly with every transition switched off, under one GPU cross-fade (View Transition).
-  // Letting hundreds of blurred glass elements transition their colours one by one is what made the toggle lag on Android.
   toggleTheme = () => {
     const theme: 'light' | 'dark' = this.state.theme === 'dark' ? 'light' : 'dark', root = document.documentElement, doc = document as any
     const swap = () => { flushSync(() => this.setState({ theme })); this.persist() }
     const done = () => requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('theme-swap')))
     root.classList.add('theme-swap')
     if (!this.rm() && typeof doc.startViewTransition === 'function') {
-      try { doc.startViewTransition(swap).finished.finally(done); return } catch { /* fall through to an instant swap */ }
+      try { doc.startViewTransition(swap).finished.finally(done); return } catch { }
     }
     swap(); done()
   }
@@ -148,9 +142,6 @@ export default class App extends React.Component<Props, State> {
   settleGo(k: string) { clearTimeout(this.stt); this.stt = setTimeout(() => { this.setState({ settle: null, snap: k }); this.unsnap() }, 420) }
   unsnap() { requestAnimationFrame(() => requestAnimationFrame(() => { if (this.state.snap) this.setState({ snap: null }) })) }
 
-  // One handler on the calendar: a short left/right swipe on a day marks it (the cube turns); a long swipe (past
-  // ~2 cells), or any swipe that starts off the days, pages the month. Days open on click, not pointerup, so a tap's
-  // own trailing click can't land on the sheet's backdrop and close it straight away.
   gDown = (e: React.PointerEvent<HTMLElement>) => {
     if (e.button && e.button !== 0) return
     const t = e.target as Element, cell = t.closest('[data-key]') as HTMLElement | null
@@ -161,7 +152,7 @@ export default class App extends React.Component<Props, State> {
   gMove = (e: React.PointerEvent<HTMLElement>) => {
     const g = this.g; if (!g || g.id !== e.pointerId) return; const dx = e.clientX - g.x, dy = e.clientY - g.y
     if (!g.mode) {
-      if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy) * 1.2) { g.mode = g.k ? 'h' : 'm'; this.dragAt = Infinity; try { g.box.setPointerCapture(g.id) } catch { /* ignore */ } }
+      if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy) * 1.2) { g.mode = g.k ? 'h' : 'm'; this.dragAt = Infinity; try { g.box.setPointerCapture(g.id) } catch { } }
       else if (Math.abs(dy) > 8) { g.mode = 'v'; this.dragAt = Infinity }
     }
     if (g.mode === 'h' && Math.abs(dx) > g.T) { g.mode = 'm'; g.mx = dx; g.on = false; this.buzz(8); this.setState({ drag: null }) }
@@ -178,7 +169,6 @@ export default class App extends React.Component<Props, State> {
   gCancel = () => { const g = this.g; this.g = null; if (!g) return; if (g.mode) this.dragAt = Date.now(); this.setState({ drag: null }); if (g.mode === 'm') this.page(0, true) }
   dayClick = (e: React.MouseEvent<HTMLButtonElement>) => { if (Date.now() - this.dragAt < 350) return; this.open(e.currentTarget.dataset.key!) }
   onKey = (e: React.KeyboardEvent<HTMLButtonElement>) => { const k = e.currentTarget.dataset.key!; if (e.key === 'ArrowRight') { e.preventDefault(); this.swipe(k, 1, e.currentTarget, 'auto') } else if (e.key === 'ArrowLeft') { e.preventDefault(); this.swipe(k, -1, e.currentTarget, 'auto') } }
-  // while paging, the grid follows the finger; let go short of the threshold and it springs back
   page(off: number, settle = false) {
     const el = this.q('[data-anim="grid"]'); if (!el) return
     const from = el.style.transform
@@ -187,7 +177,7 @@ export default class App extends React.Component<Props, State> {
     if (settle && from && !this.rm()) el.animate([{ transform: from }, { transform: 'none' }], { duration: 200, easing: EASE })
   }
   bDown = (e: React.PointerEvent<HTMLButtonElement>) => { this.bSwiped = false; if (e.button && e.button !== 0) return; this.bg = { x: e.clientX, y: e.clientY, id: e.pointerId, el: e.currentTarget, mode: null } }
-  bMove = (e: React.PointerEvent<HTMLButtonElement>) => { const g = this.bg; if (!g || g.id !== e.pointerId || g.mode) return; const dx = e.clientX - g.x, dy = e.clientY - g.y; if (Math.abs(dy) > 8 && Math.abs(dy) > Math.abs(dx)) { g.mode = 'v'; try { g.el.setPointerCapture(g.id) } catch { /* ignore */ } } }
+  bMove = (e: React.PointerEvent<HTMLButtonElement>) => { const g = this.bg; if (!g || g.id !== e.pointerId || g.mode) return; const dx = e.clientX - g.x, dy = e.clientY - g.y; if (Math.abs(dy) > 8 && Math.abs(dy) > Math.abs(dx)) { g.mode = 'v'; try { g.el.setPointerCapture(g.id) } catch { } } }
   bUp = (e: React.PointerEvent<HTMLButtonElement>) => { const g = this.bg; this.bg = null; if (!g || g.mode !== 'v') return; this.bSwiped = true; const dy = e.clientY - g.y; if (Math.abs(dy) > 20) this.switchHabit(dy < 0 ? 1 : -1) }
   bCancel = () => { this.bg = null }
   bClick = () => { if (this.bSwiped) { this.bSwiped = false; return } this.openHabits() }
@@ -198,7 +188,6 @@ export default class App extends React.Component<Props, State> {
   afterNav(dir: number) { this.slide(dir); requestAnimationFrame(() => requestAnimationFrame(() => { if (this.state.instant) this.setState({ instant: false }) })) }
   open(k: string) { clearTimeout(this.ct); this.setState({ sel: k, closing: false }) }
 
-  // ---- habits ----
   switchHabit(dir: number) { const s = this.state; let j = this.hIdx() + dir; while (j >= 0 && j < s.habits.length && s.habits[j].later) j += dir; if (j < 0 || j >= s.habits.length) { this.bump(dir); return } this.toHabit(s.habits[j].id, dir) }
   toHabit(id: string, dir: number) { if (id === this.state.cur) return; this.switching = true; this.save({ cur: id }, () => { this.switching = false; this.rollBadge(dir) }); this.buzz(8) }
   rollBadge(dir: number) { if (this.rm()) return; const r = this.q('[data-anim="hroll"]'); if (r) r.animate([{ transform: `translateY(${dir > 0 ? 60 : -60}%)`, opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 260, easing: EASE }) }
@@ -254,7 +243,6 @@ export default class App extends React.Component<Props, State> {
     this.save(patch, () => { if (wasCur) { this.switching = false; this.rollBadge(-1) } })
   }
 
-  // ---- motion ----
   rm() { return !!(typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches) }
   q(sel: string) { return document.querySelector(sel) as HTMLElement | null }
   animNums() {
@@ -280,7 +268,6 @@ export default class App extends React.Component<Props, State> {
   }
   hideToast() { clearTimeout(this.tt); if (!this.state.toast) return; if (this.rm()) { this.setState({ toast: null, toastOut: false }); return } this.setState({ toastOut: true }); clearTimeout(this.to); this.to = setTimeout(() => this.setState({ toast: null, toastOut: false }), 180) }
   closeSheet() { this.flushNote(); if (this.state.closing || !this.state.sel) return; if (this.rm()) { this.setState({ sel: null }); return } this.setState({ closing: true }); clearTimeout(this.ct); this.ct = setTimeout(() => this.setState({ sel: null, closing: false }), 200) }
-  // notes save while typing (debounced) so nothing is lost if the app is closed mid-note
   noteInput(k: string, v: string) { this.noteDraft = { k, v }; clearTimeout(this.nt); this.nt = setTimeout(() => this.flushNote(), 400) }
   flushNote() {
     clearTimeout(this.nt); const d = this.noteDraft; this.noteDraft = null
@@ -350,11 +337,10 @@ export default class App extends React.Component<Props, State> {
     this.hideToast()
   }
 
-  // ---- backup ----
   copyBackup = async () => {
     const s = this.state, text = makeBackup(this.doc()), c = countOf({ ...s, avoid: s.avoid })
     let done = false
-    try { await navigator.clipboard.writeText(text); done = true } catch { /* fall back below */ }
+    try { await navigator.clipboard.writeText(text); done = true } catch { }
     if (!done) {
       const ta = document.createElement('textarea'); ta.value = text; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;top:0;opacity:0'
       document.body.appendChild(ta); ta.select(); try { done = document.execCommand('copy') } catch { done = false } ta.remove()
@@ -370,7 +356,6 @@ export default class App extends React.Component<Props, State> {
     this.buzz(12)
   }
 
-  // ---- sync ----
   syncLabel() {
     const st = store.state
     if (st === 'off') return 'Saved on this device · tap to sync'
@@ -392,8 +377,6 @@ export default class App extends React.Component<Props, State> {
         const k = keyOf(dt), out = dt.getMonth() !== s.m, mark = M[k] as Mark | undefined, hol = holiday(k), red = dt.getDay() === 0 || !!hol, isToday = k === t
         if (!out) { if (mark === 't') mt++; if (mark === 'x') mx++ }
         const dx = s.drag && s.drag.k === k ? s.drag.dx : 0, q = Math.min(1, Math.abs(dx) / 24)
-        // a real cube: date on front and back, tick on the right face (swipe left), cross on the left face (swipe right);
-        // a marked day turns back to a date either way. Reduced motion keeps it flat.
         const st8 = s.settle && s.settle.k === k ? s.settle : null, turn = s.turn && s.turn.k === k ? s.turn : null, snap = s.snap === k
         const base: Mark | null = st8 ? st8.from : mark || null, tR: Mark | null = base ? null : 'x', tL: Mark | null = base ? null : 't'
         const ang = flat ? 0 : st8 ? st8.dir * 90 : dx ? (dx > 0 ? 1 : -1) * q * 90 : turn && !turn.ph ? -turn.dir * 90 : 0, sides = !flat && (!!dx || !!turn || !!st8 || s.lastDrag === k)
@@ -449,15 +432,11 @@ export default class App extends React.Component<Props, State> {
     const s = this.state, V = this.renderVals(), H = this.habit(), nH = s.habits.length, nActive = s.habits.filter(h => !h.later).length, hi = this.hIdx(), sw = this.props.showWeekNumbers ?? true
     const { st, nx, weeks, upcoming, dots, sel, dark, off, bd, score } = V
     const bg = (a: string, b: string) => `translate(${off(...(a.split(',').map(Number) as [number, number]))},${off(...(b.split(',').map(Number) as [number, number]))})`
-    const bgA = bg('1,36', '2,28'), bgB = bg('3,18', '4,56'), bgC = bg('5,56', '6,22'), bgD = bg('7,22', '8,40')
-    const discs: [React.CSSProperties, string][] = [
-      [{ width: 340, height: 340, borderRadius: '50%', background: 'var(--c30)', top: -90, right: -130 }, bgA],
-      [{ width: 120, height: 120, borderRadius: '50%', background: 'var(--c10)', top: '44%', left: -40 }, bgB],
-      [{ width: 240, height: 240, borderRadius: '50%', background: 'var(--c30)', bottom: -100, left: '28%' }, bgC],
-      [{ width: 64, height: 64, borderRadius: '50%', background: 'var(--c10)', bottom: '24%', right: '7%' }, bgD],
-      [{ width: 520, height: 520, borderRadius: '50%', border: '1px solid var(--contour)', top: -180, right: -250 }, bgA],
-      [{ width: 700, height: 700, borderRadius: '50%', border: '1px solid var(--contour)', top: -280, right: -350 }, bgA],
-      [{ width: 380, height: 380, borderRadius: '50%', border: '1px solid var(--contour)', bottom: -170, left: '18%' }, bgC],
+    const bgA = bg('1,36', '2,28'), bgB = bg('3,18', '4,56'), bgC = bg('5,56', '6,22')
+    const glows: [React.CSSProperties, string][] = [
+      [{ width: 780, left: -330, top: -400, background: 'radial-gradient(closest-side, color-mix(in oklab, var(--c30) var(--wash30), transparent), color-mix(in oklab, var(--c30) calc(var(--wash30) * var(--glow-mid)), transparent) 40%, color-mix(in oklab, var(--c30) calc(var(--wash30) * var(--glow-tail)), transparent) 70%, transparent 100%)' }, bgA],
+      [{ width: 520, right: -200, top: 150, background: 'radial-gradient(closest-side, color-mix(in oklab, var(--c10) var(--wash10), transparent), color-mix(in oklab, var(--c10) calc(var(--wash10) * .5), transparent) 45%, transparent 100%)' }, bgB],
+      [{ width: 720, left: 60, bottom: -470, background: 'radial-gradient(closest-side, color-mix(in oklab, var(--c30) calc(var(--wash30) * var(--glow-echo)), transparent), color-mix(in oklab, var(--c30) calc(var(--wash30) * var(--glow-tail)), transparent) 55%, transparent 100%)' }, bgC],
     ]
     const lbl: React.CSSProperties = { font: `500 11px/1 ${FONT}`, letterSpacing: '.08em', textTransform: 'uppercase' }
     const sheet = (open: boolean, closing: boolean): React.CSSProperties => ({ position: 'fixed', left: 0, right: 0, bottom: 'var(--kb, 0px)', zIndex: 21, maxWidth: 560, maxHeight: 'min(88vh, calc(100vh - var(--kb, 0px) - 12px))', overflow: 'auto', overscrollBehavior: 'contain', transition: 'bottom .22s cubic-bezier(.2,.8,.2,1), max-height .22s cubic-bezier(.2,.8,.2,1)', margin: '0 auto', padding: '10px 18px max(20px, env(safe-area-inset-bottom))', boxSizing: 'border-box', borderRadius: '26px 26px 0 0', ...glass(30, 1.4), borderBottom: 0, display: 'flex', flexDirection: 'column', animation: closing ? 'sheetDown .2s cubic-bezier(.4,0,1,1) forwards' : 'sheetUp .25s cubic-bezier(.2,.8,.2,1)' })
@@ -474,7 +453,7 @@ export default class App extends React.Component<Props, State> {
     return (
       <>
         <div aria-hidden="true" style={{ position: 'fixed', inset: 0, overflow: 'hidden', zIndex: 0, pointerEvents: 'none' }}>
-          {discs.map(([st1, tr], i) => <div key={i} className="disc" style={{ position: 'absolute', ...st1, transform: tr }} />)}
+          {glows.map(([st1, tr], i) => <div key={i} className="disc" style={{ position: 'absolute', aspectRatio: '1', borderRadius: '50%', ...st1, transform: tr }} />)}
         </div>
 
         <div className="app" style={{ ['--wn' as any]: sw ? '18px' : '0px' }}>

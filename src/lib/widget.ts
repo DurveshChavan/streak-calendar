@@ -1,4 +1,3 @@
-// Pushes what the Android home-screen widget needs to native storage. No-op on the web.
 import { registerPlugin, Capacitor } from '@capacitor/core'
 import type { Doc } from './store.ts'
 import { widgetPayload } from './widgetPayload.ts'
@@ -12,10 +11,9 @@ export function pushWidget(doc: Doc) {
   const json = widgetPayload(doc)
   if (json === last) return
   last = json
-  Bridge.update({ json }).catch(() => { /* no widget placed / plugin unavailable */ })
+  Bridge.update({ json }).catch(() => { })
 }
 
-/** Status/navigation bar colours follow the app theme (Android only). */
 export function setSystemBars(dark: boolean) {
-  Bridge?.setTheme({ dark }).catch(() => { /* older native shell */ })
+  Bridge?.setTheme({ dark }).catch(() => { })
 }
