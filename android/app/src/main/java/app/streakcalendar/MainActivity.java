@@ -21,7 +21,8 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        registerPlugin(WidgetBridgePlugin.class); // must run before super.onCreate
+        registerPlugin(WidgetBridgePlugin.class);
+        registerPlugin(TimerBridgePlugin.class);
         super.onCreate(savedInstanceState);
         // Edge to edge on every Android version, with the insets handled here: the system bars become margins
         // around the page, and the keyboard height is handed to the page (CSS --kb) so sheets rise above the

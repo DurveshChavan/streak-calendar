@@ -65,7 +65,7 @@ interface State {
   sel: string | null; drag: { k: string; dx: number; dur: number } | null; lastDrag: string | null; snap: string | null
   turn: { k: string; from: Mark | null; dir: number; ph: number } | null; settle: { k: string; from: Mark | null; to: Mark | null; dir: number; dur: number } | null
   toast: { k: string; prev: Mark | null; hid: string; text: string } | null; toastOut: boolean; closing: boolean; instant: boolean
-  timer: Timer | null; view: 'timer' | 'detail' | 'review' | null; twoMiss: Extract<Prompt, { kind: 'twoMiss' }> | null; reviewSeen: string
+  timer: Timer | null; timerHint: string; view: 'timer' | 'detail' | 'review' | null; twoMiss: Extract<Prompt, { kind: 'twoMiss' }> | null; reviewSeen: string
   hOpen: boolean; hClosing: boolean; hEdit: string | null; confirmId: string | null; avName: string; avRep: string
   syncOpen: boolean; syncUrl: string; syncToken: string
   bkOpen: boolean; bkText: string; bkMsg: string; bkPending: Parsed | null
@@ -83,7 +83,7 @@ export default class App extends React.Component<Props, State> {
     const d = store.doc, t = new Date()
     this.state = { y: t.getFullYear(), m: t.getMonth(), habits: d.habits, cur: d.cur, notes: d.notes, theme: d.theme, avoid: d.avoid, settings: d.settings,
       sel: null, drag: null, lastDrag: null, snap: null, turn: null, settle: null, toast: null, toastOut: false, closing: false, instant: false,
-      timer: null, view: null, twoMiss: null, reviewSeen: localStorage.getItem('streakcal.review') || '',
+      timer: null, timerHint: '', view: null, twoMiss: null, reviewSeen: localStorage.getItem('streakcal.review') || '',
       hOpen: false, hClosing: false, hEdit: null, confirmId: null, avName: '', avRep: '', syncOpen: false, syncUrl: store.meta.url, syncToken: store.meta.token, bkOpen: false, bkText: '', bkMsg: '', bkPending: null }
     store.onRemote((doc: Doc) => this.setState({ habits: doc.habits, notes: doc.notes, cur: doc.cur, avoid: doc.avoid, settings: doc.settings }))
     store.onStatus(() => this.forceUpdate())
@@ -207,7 +207,7 @@ export default class App extends React.Component<Props, State> {
   closeHabits() {
     if (this.state.hClosing || !this.state.hOpen) return
     if (this.rm()) { this.setState({ hOpen: false, hEdit: null, confirmId: null }); return }
-    this.setState({ hClosing: true }); clearTimeout(this.hct); this.hct = setTimeout(() => this.setState({ timer: null, view: null, twoMiss: null, reviewSeen: localStorage.getItem('streakcal.review') || '',
+    this.setState({ hClosing: true }); clearTimeout(this.hct); this.hct = setTimeout(() => this.setState({ timer: null, timerHint: '', view: null, twoMiss: null, reviewSeen: localStorage.getItem('streakcal.review') || '',
       hOpen: false, hClosing: false, hEdit: null, confirmId: null }), 200)
   }
   pickHabit(id: string, i: number) { const d = Math.sign(i - this.hIdx()); if (d) this.toHabit(id, d); this.closeHabits() }
@@ -224,7 +224,8 @@ export default class App extends React.Component<Props, State> {
       if (!window.confirm('A timer is already running. Cancel it and start this one?')) return
       await timerPort.cancel(); await timerPort.start({ habitId: h.id, kind, minutes: timerMinutes(h) })
     }
-    await this.syncTimer(); this.setState({ view: 'timer', sel: null }); this.buzz(12)
+    const ok = timerPort.notifications ? await timerPort.notifications().catch(() => false) : true
+    await this.syncTimer(); this.setState({ view: 'timer', sel: null, timerHint: ok ? '' : 'Notifications are off, so the timer shows only in the app. It still counts when you come back. Turn on notifications in Android settings to see it on the lock screen.' }); this.buzz(12)
   }
   stopTimer = async () => { await timerPort.cancel(); this.setState({ timer: null, view: null }) }
   doneReview = () => { const w = weekOf(this.today(), this.state.settings.weekStart); localStorage.setItem('streakcal.review', w); this.setState({ reviewSeen: w, view: null }) }
@@ -583,7 +584,7 @@ export default class App extends React.Component<Props, State> {
         {s.timer && s.view !== 'timer' && (() => { const th = s.habits.find(h => h.id === s.timer!.habitId); return th ? (
           <button className="glassfade" onClick={() => this.setState({ view: 'timer' })} style={{ position: 'fixed', top: 'max(8px, env(safe-area-inset-top))', left: '50%', transform: 'translateX(-50%)', zIndex: 14, border: 0, borderRadius: 12, padding: '8px 14px', background: '#14161A', color: '#F4F6FA', font: `500 13px/1 ${FONT}`, cursor: 'pointer' }}>Timer · {th.name}</button>
         ) : null })()}
-        {s.view === 'timer' && s.timer && (() => { const th = s.habits.find(h => h.id === s.timer!.habitId); return th ? <TimerScreen timer={s.timer} habit={th} onStop={this.stopTimer} onClose={() => this.setState({ view: null })} onEnd={this.syncTimer} /> : null })()}
+        {s.view === 'timer' && s.timer && (() => { const th = s.habits.find(h => h.id === s.timer!.habitId); return th ? <TimerScreen timer={s.timer} habit={th} onStop={this.stopTimer} onClose={() => this.setState({ view: null })} onEnd={this.syncTimer} hint={s.timerHint} /> : null })()}
         {s.view === 'detail' && <Detail habit={H} today={this.today()} ws={s.settings.weekStart} onStart={() => this.startTimer(H)} onEdit={() => this.setState({ view: null, hOpen: true, hEdit: H.id })} onClose={() => this.setState({ view: null })} />}
         {s.view === 'review' && <Review rows={weekReview(this.doc(), this.today())} onDone={this.doneReview} onClose={() => this.setState({ view: null })} />}
         {s.twoMiss && <TwoMiss name={s.habits.find(h => h.id === s.twoMiss!.habit)?.name || ''} prompt={s.twoMiss} onChange={() => this.setState({ twoMiss: null, sel: null, hOpen: true, hEdit: s.twoMiss!.habit })} onKeep={() => this.setState({ twoMiss: null })} />}
