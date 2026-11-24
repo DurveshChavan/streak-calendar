@@ -1,0 +1,6 @@
+{
+  "name": "number: sum of values, target per week, no streak, future ignored",
+  "today": "2026-11-25", "weekStart": 0,
+  "habit": { "id": "n1", "name": "Pages", "kind": "number", "target": 50, "marks": {}, "values": { "2026-11-20": 30, "2026-11-23": 20, "2026-11-25": 12.5, "2026-11-26": 99 } },
+  "expect": { "total": 62.5, "thisWeek": { "first": "2026-11-22", "amount": 32.5, "of": 50, "met": false }, "streak": null }
+}

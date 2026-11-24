@@ -1,0 +1,8 @@
+{
+  "name": "reduce with a budget: urges are the total, slips against budget, empty weeks are unknown",
+  "today": "2026-11-25", "weekStart": 0,
+  "habit": { "id": "r1", "name": "Phone", "kind": "reduce", "budget": 2, "marks": {},
+    "urges": { "2026-11-02": 3, "2026-11-16": 2, "2026-11-23": 4, "2026-11-24": 1 },
+    "slips": { "2026-11-03": 3, "2026-11-17": 1, "2026-11-24": 1 } },
+  "expect": { "total": 10, "thisWeek": { "first": "2026-11-22", "amount": 5, "used": 1, "of": 2, "met": true }, "streak": { "cur": 2, "best": 2, "unit": "week" } }
+}

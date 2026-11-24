@@ -1,0 +1,6 @@
+{
+  "name": "reduce without a budget: no slips, no streak",
+  "today": "2026-11-25", "weekStart": 0,
+  "habit": { "id": "r2", "name": "Sugar", "kind": "reduce", "marks": {}, "urges": { "2026-11-24": 2 } },
+  "expect": { "total": 2, "thisWeek": { "first": "2026-11-22", "amount": 2, "met": null }, "streak": null }
+}
