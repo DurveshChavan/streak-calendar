@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>3.1 model prototype</title>
+<style>
+/* VOICE: calm, clinical test bench. PROTOTYPE — throwaway.
+   IDEA: a habit lab notebook: the day strip is the specimen, buttons are the stimuli.
+   PICTURE: the habit cards with their two-week strips, live.
+   COLOUR and TYPE: app sky blue ground, ink text, green done, grey miss, red only as accent.
+   LAYOUT: question, state (cards), free play, walkthrough tabs; stacks under 760px. */
+:root{color-scheme:light dark;--bg:light-dark(#B7D8F5,#030303);--ink:light-dark(#14161A,#F4F6FA);--pane:light-dark(rgba(255,255,255,.62),rgba(255,255,255,.07));--line:light-dark(rgba(20,22,26,.16),rgba(244,246,250,.16));--done:light-dark(#0E8A43,#13994C);--miss:light-dark(#8C939C,#6B7280);--acc:light-dark(#E10600,#7C8CFF);--soft:light-dark(rgba(20,22,26,.06),rgba(255,255,255,.06))}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;overflow-x:clip}
+.wrap{max-width:1240px;margin:0 auto;padding:clamp(20px,3vw,44px) max(4vw,14px)}
+h1{font-size:clamp(28px,4vw,42px);line-height:1.05;margin:0 0 8px;text-wrap:balance}
+h2{font-size:20px;margin:0 0 10px}
+.lead{max-width:70ch;margin:0 0 6px}.tag{font-size:13px;opacity:.8}
+.grid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:16px;margin-top:20px}
+@media(max-width:760px){.grid{grid-template-columns:minmax(0,1fr)}}
+.pane{background:var(--pane);border:1px solid var(--line);border-radius:18px;padding:16px;backdrop-filter:blur(14px)}
+.bar{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:baseline;margin-bottom:12px}
+.big{font-size:32px;font-weight:700;line-height:1}.big.zero{color:var(--miss)}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px}
+.card{border:1px solid var(--line);border-radius:14px;padding:12px;background:var(--soft)}
+.card.paused{opacity:.55}
+.card h3{margin:0;font-size:16px}.kind{font-size:13px;opacity:.8}
+.nums{display:flex;gap:14px;align-items:baseline;margin:8px 0;flex-wrap:wrap}
+.nums b{font-size:26px}.nums span{font-size:13px}
+.strip{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;margin:6px 0}
+.wk{font-size:13px;opacity:.75;grid-column:1/-1;margin-top:2px}
+.cell{height:36px;border-radius:8px;border:1px solid var(--line);background:transparent;font-size:13px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.1;padding:0}
+.cell small{font-size:13px;opacity:.7}
+.cell.t{background:var(--done);color:#fff;border-color:transparent}
+.cell.x{background:var(--miss);color:#fff;border-color:transparent}
+.cell.today{outline:2px solid var(--acc);outline-offset:1px}
+.cell:disabled{opacity:.3;cursor:default}
+.trend{display:flex;gap:3px;align-items:flex-end;height:30px;margin:6px 0}
+.trend i{flex:1;background:var(--ink);opacity:.55;border-radius:2px 2px 0 0;min-height:2px}
+.row{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+button.b{min-height:44px;padding:0 14px;border-radius:12px;border:1px solid var(--line);background:var(--pane);color:var(--ink);font:inherit;font-size:15px;cursor:pointer}
+button.b.s{min-height:36px;font-size:13px;padding:0 10px}
+button.b:hover{border-color:var(--ink)}button.b:focus-visible,.cell:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+button.b:disabled{opacity:.35;cursor:default}
+.note{border-left:3px solid var(--ink);padding:8px 12px;margin:8px 0;background:var(--soft);border-radius:0 10px 10px 0;font-size:15px}
+.note.refuse{border-color:var(--miss)}
+.log{font-size:13px;max-height:220px;overflow:auto;margin:0;padding-left:18px}
+.log li:first-child{font-weight:600}
+.tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.tabs button[aria-selected=true]{border-color:var(--acc);box-shadow:inset 0 -3px 0 var(--acc)}
+ol.steps{padding-left:20px;margin:8px 0}ol.steps li{margin:6px 0}
+ol.steps li.done button{opacity:.45}
+input.r{font:inherit;font-size:16px;width:100%;min-height:40px;border-radius:10px;border:1px solid var(--line);background:var(--pane);color:var(--ink);padding:0 10px;margin-top:4px}
+.sec{margin-top:16px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Does the 3.1 habit model feel right?</h1>
+<p class="lead">Prototype of the phase 1 requirements (<code>docs/V3.1-REQUIREMENTS.md</code>). Click days, log urges, run timers, change the week start, and watch every number move. Throwaway: nothing is saved. Sample habits are made up.</p>
+<p class="tag">Done = green. Missed = grey. Blank = unknown. Click a build day to cycle blank → done → missed.</p>
+
+<div class="grid">
+ <section class="pane" aria-label="Current state">
+  <div class="bar" id="bar"></div>
+  <div id="notes"></div>
+  <div class="cards" id="cards"></div>
+  <div class="sec" id="avoid"></div>
+ </section>
+ <aside>
+  <section class="pane">
+   <h2>Free play</h2>
+   <div class="row" id="free"></div>
+  </section>
+  <section class="pane sec">
+   <h2>Walkthroughs</h2>
+   <div class="tabs" id="tabs" role="tablist"></div>
+   <div id="tab"></div>
+  </section>
+  <section class="pane sec">
+   <h2>What just happened</h2>
+   <ol class="log" id="log" reversed></ol>
+  </section>
+ </aside>
+</div>
+</div>
+
+<script>
+{
+/* ================= PURE MODEL (liftable, no DOM) ================= */
+const M = (() => {
+  const D = k => new Date(k + 'T00:00:00Z'), K = d => d.toISOString().slice(0, 10)
+  const add = (k, n) => { const d = D(k); d.setUTCDate(d.getUTCDate() + n); return K(d) }
+  const dow = k => D(k).getUTCDay()
+  const weekOf = (k, ws) => add(k, -((dow(k) - ws + 7) % 7))
+  const days = start => [0,1,2,3,4,5,6].map(i => add(start, i))
+  const sum = o => Object.values(o || {}).reduce((a, b) => a + b, 0)
+  const inWeek = (o, wk) => days(wk).reduce((a, k) => a + ((o || {})[k] || 0), 0)
+  const doneIn = (h, wk) => days(wk).filter(k => h.marks[k] === 't').length
+  const isBuild = h => h.kind === 'daily' || h.kind === 'weekly'
+  const clone = s => JSON.parse(JSON.stringify(s))
+
+  function total(h) {
+    if (isBuild(h)) return Object.values(h.marks).filter(v => v === 't').length
+    if (h.kind === 'reduce') return sum(h.resisted)
+    return sum(h.values)
+  }
+  function thisWeek(h, s) {
+    const wk = weekOf(s.today, s.weekStart)
+    if (h.kind === 'daily') return doneIn(h, wk) + ' / 7 this week'
+    if (h.kind === 'weekly') return doneIn(h, wk) + ' / ' + h.perWeek + ' this week'
+    if (h.kind === 'reduce') return inWeek(h.resisted, wk) + ' resisted' + (h.budget ? ' · ' + inWeek(h.counts, wk) + ' of ' + h.budget + ' used' : '')
+    return inWeek(h.values, wk) + (h.target ? ' / ' + h.target : '') + ' this week'
+  }
+  function firstKey(h) {
+    const ks = [h.marks, h.resisted, h.counts, h.values].flatMap(o => Object.keys(o || {})).sort()
+    return ks[0]
+  }
+  /* daily: 2.0 rule, only ✕ breaks. weekly/reduce: week streaks; current week never breaks. */
+  function streak(h, s) {
+    if (h.kind === 'number') return null
+    if (h.kind === 'daily') {
+      let run = 0
+      for (const k of Object.keys(h.marks).filter(k => k <= s.today).sort()) run = h.marks[k] === 't' ? run + 1 : 0
+      return { n: run, unit: 'days' }
+    }
+    if (h.kind === 'reduce' && !h.budget) return null
+    const f = firstKey(h); if (!f) return { n: 0, unit: 'weeks' }
+    const cur = weekOf(s.today, s.weekStart); let run = 0
+    for (let w = weekOf(f, s.weekStart); w <= cur; w = add(w, 7)) {
+      const ok = h.kind === 'weekly' ? doneIn(h, w) >= h.perWeek : inWeek(h.counts, w) <= h.budget
+      if (w === cur) { if (ok && h.kind === 'weekly') run++ } else run = ok ? run + 1 : 0
+    }
+    return { n: run, unit: 'weeks' }
+  }
+  function trend(h, s) {
+    const cur = weekOf(s.today, s.weekStart)
+    return [7,6,5,4,3,2,1,0].map(i => { const w = add(cur, -7 * i)
+      return isBuild(h) ? doneIn(h, w) : h.kind === 'reduce' ? inWeek(h.resisted, w) : inWeek(h.values, w) })
+  }
+  const active = s => s.habits.filter(h => !h.paused)
+  function score(s, day) {
+    const d = active(s).filter(h => h.kind === 'daily')
+    return { x: d.filter(h => h.marks[day] === 't').length, n: d.length }
+  }
+  function prompts(s) {
+    const y = add(s.today, -1), y2 = add(s.today, -2), out = []
+    for (const h of active(s).filter(h => h.kind === 'daily')) {
+      if (h.marks[s.today] === 't') continue
+      if (s.rules.twoMiss && h.marks[y] === 'x' && h.marks[y2] === 'x')
+        out.push({ type: 'twoMiss', h: h.name, reasons: [[y2, h.reasons[y2] || '(no reason)'], [y, h.reasons[y] || '(no reason)']] })
+      else if (s.rules.restart && h.marks[y] === 'x') out.push({ type: 'restart', h: h.name, min: h.timerMin })
+    }
+    return out
+  }
+  function review(s) {
+    const wk = weekOf(s.today, s.weekStart)
+    if (dow(s.today) !== (s.weekStart + 6) % 7 || s.reviewDismissed === wk) return null
+    return { week: wk, rows: active(s).map(h => ({ h: h.name, line: thisWeek(h, s),
+      avg: h.kind === 'number' ? (inWeek(h.values, wk) / 7).toFixed(1) + ' a day' : '',
+      reasons: days(wk).filter(k => h.reasons && h.reasons[k]).map(k => [k, h.reasons[k]]) })) }
+  }
+
+  function complete(s, note) {
+    const t = s.timer, h = s.habits.find(h => h.id === t.hid); s.timer = null
+    if (h.kind === 'reduce') { h.resisted[t.day] = (h.resisted[t.day] || 0) + 1; return note + ': +1 resisted urge on ' + h.name }
+    h.marks[t.day] = 't'; delete h.reasons[t.day]; return note + ': ' + h.name + ' marked done'
+  }
+  function due(s, note) { return s.timer && s.clock >= s.timer.endsAt && s.perm ? complete(s, note) : null }
+
+  /* reducer: returns { s, msg, refused } */
+  function act(s0, a) {
+    const s = clone(s0), h = a.id ? s.habits.find(x => x.id === a.id) : null
+    const ok = msg => ({ s, msg }), no = msg => ({ s: s0, msg, refused: true })
+    switch (a.type) {
+      case 'mark': {
+        if (!isBuild(h)) return no('Only build habits have days to tick.')
+        if (a.day > s.today) return no('Future days cannot be marked.')
+        if (h.paused) return no(h.name + ' is paused (Later). No ticks.')
+        const v = h.marks[a.day], n = !v ? 't' : v === 't' ? 'x' : null
+        if (n) h.marks[a.day] = n; else delete h.marks[a.day]
+        if (n !== 'x') delete h.reasons[a.day]
+        return ok(h.name + ' ' + a.day + ' → ' + (n === 't' ? 'done' : n === 'x' ? 'missed (reason field opens)' : 'blank (unknown, not a miss)'))
+      }
+      case 'reason':
+        if (!isBuild(h) || h.marks[a.day] !== 'x') return no('A reason can only be written on a missed build day.')
+        if (a.text) h.reasons[a.day] = a.text; else delete h.reasons[a.day]
+        return ok('Reason saved for ' + h.name + ' ' + a.day + ': "' + a.text + '"')
+      case 'resist': h.resisted[s.today] = (h.resisted[s.today] || 0) + 1; return ok(h.name + ': +1 resisted urge (total ' + sum(h.resisted) + ')')
+      case 'slip':
+        if (!h.budget) return no('No budget set on ' + h.name + ', so the app does not log how often it happened.')
+        h.counts[s.today] = (h.counts[s.today] || 0) + 1; return ok(h.name + ': happened once more. Resisted total unchanged.')
+      case 'budget': h.budget = a.v || 0; return ok(h.name + ' budget → ' + (a.v ? a.v + ' a week' : 'none (count no longer logged)'))
+      case 'value': h.values[s.today] = (h.values[s.today] || 0) + a.v; return ok(h.name + ': +' + a.v + ' today')
+      case 'pause': h.paused = !h.paused; return ok(h.name + (h.paused ? ' moved to Later. Leaves score and streak.' : ' back to active.'))
+      case 'weekStart': s.weekStart = a.v; return ok('Week now starts on ' + ['Sunday','Monday'][a.v] + '. All weekly numbers recalculated from marks.')
+      case 'rule': s.rules[a.k] = !s.rules[a.k]; return ok((a.k === 'restart' ? 'Restart rule ' : 'Two-miss rule ') + (s.rules[a.k] ? 'on' : 'off'))
+      case 'perm': s.perm = !s.perm; return ok('Notification permission ' + (s.perm ? 'granted' : 'denied'))
+      case 'timer': {
+        if (!isBuild(h) && h.kind !== 'reduce') return no('Number habits have no timer.')
+        if (s.timer && !a.force) { s.confirm = a.id; return ok('A timer is already running. The app asks: cancel it and start ' + h.name + '?') }
+        s.confirm = null
+        s.timer = { hid: h.id, day: s.today, endsAt: s.clock + h.timerMin, from: a.from || 'app' }
+        return ok((a.from === 'widget' ? 'Widget' : 'App') + ' started ' + h.timerMin + '-min timer for ' + h.name + (h.replacement ? '. Shows: "' + h.replacement + '"' : '') + (s.perm ? '' : '. No notification permission: hint shown.'))
+      }
+      case 'keep': s.confirm = null; return ok('Kept the running timer.')
+      case 'stop': if (!s.timer) return no('No timer running.'); s.timer = null; return ok('Timer stopped early. Nothing counted, no penalty.')
+      case 'wait': {
+        s.clock += a.m
+        const r = due(s, 'Timer ended (native notification)')
+        if (r) return ok(r)
+        if (s.timer && s.clock >= s.timer.endsAt) return ok(a.m + ' min passed. Timer ended, but app is closed and no notification: result waits for app open.')
+        return ok(a.m + ' min passed.')
+      }
+      case 'open': {
+        if (s.timer && s.clock >= s.timer.endsAt) return ok(complete(s, 'App opened after end time'))
+        return ok('App opened.')
+      }
+      case 'day': {
+        let r = ''
+        if (s.timer) { s.clock = Infinity; r = s.perm ? complete(s, 'Timer ended overnight') + '. ' : '' }
+        s.today = add(s.today, 1); s.clock = 540
+        return ok(r + 'New day: ' + s.today + ' (' + ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dow(s.today)] + ')')
+      }
+      case 'dismiss': s.reviewDismissed = weekOf(s.today, s.weekStart); return ok('Weekly review dismissed.')
+    }
+    return no('Unknown action')
+  }
+
+  function initial() {
+    const today = '2026-11-24', m = {}
+    for (let i = 1; i <= 40; i++) { const k = add(today, -i); m[k] = i % 9 === 0 ? 'x' : i % 5 === 0 ? undefined : 't'; if (!m[k]) delete m[k] }
+    const sp = {}; for (let i = 3; i <= 40; i++) if ([0,2,4].includes(i % 7)) sp[add(today, -i)] = 't'
+    return {
+      today, clock: 540, weekStart: 0, perm: true, rules: { restart: true, twoMiss: true }, timer: null, confirm: null, reviewDismissed: null,
+      habits: [
+        { id: 'read', name: 'Read 10 pages', kind: 'daily', marks: m, reasons: {}, timerMin: 5, note: '2.0 habit, untouched' },
+        { id: 'speak', name: 'Speaking practice', kind: 'weekly', perWeek: 3, marks: sp, reasons: {}, timerMin: 5 },
+        { id: 'scroll', name: 'Phone scrolling', kind: 'reduce', budget: 0, resisted: { [add(today,-1)]: 2, [add(today,-3)]: 1 }, counts: {}, timerMin: 20, replacement: 'Walk outside' },
+        { id: 'hours', name: 'Focused hours', kind: 'number', target: 20, values: { [add(today,-1)]: 3, [add(today,-2)]: 4 } },
+        { id: 'guitar', name: 'Guitar', kind: 'daily', marks: {}, reasons: {}, timerMin: 5, paused: true }
+      ],
+      avoid: [{ name: 'Late-night snacks', instead: 'Drink a glass of water' }]
+    }
+  }
+  return { act, initial, total, thisWeek, streak, trend, score, prompts, review, weekOf, days, add, dow }
+})()
+
+/* ================= PAGE SHELL (throwaway) ================= */
+const $ = id => document.getElementById(id)
+const esc = v => String(v).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[c])
+const DN = ['S','M','T','W','T','F','S']
+let S = M.initial(), log = [], tab = 0, step = 0
+
+function run(a) {
+  const r = M.act(S, a); S = r.s
+  log.unshift((r.refused ? 'Refused — ' : '') + r.msg); log = log.slice(0, 40); render()
+  return r
+}
+const kindLabel = { daily: 'Build, every day', weekly: 'Build, N a week', reduce: 'Reduce', number: 'Number' }
+
+function card(h) {
+  const st = M.streak(h, S), cur = M.weekOf(S.today, S.weekStart), prev = M.add(cur, -7), tr = M.trend(h, S), mx = Math.max(1, ...tr)
+  const cells = wk => M.days(wk).map(k => {
+    const fut = k > S.today, cls = (h.marks && h.marks[k]) || '', td = k === S.today ? ' today' : ''
+    let lab = h.kind === 'reduce' ? (h.resisted[k] || '') + (h.budget && h.counts[k] ? '·' + h.counts[k] : '') : h.kind === 'number' ? (h.values[k] || '') : cls === 't' ? '✓' : cls === 'x' ? '–' : ''
+    return `<button class="cell ${cls}${td}" data-id="${h.id}" data-day="${k}" ${fut ? 'disabled' : ''} aria-label="${h.name} ${k}"><small>${DN[M.dow(k)]}</small>${lab}</button>`
+  }).join('')
+  const reasons = h.marks ? Object.keys(h.marks).filter(k => h.marks[k] === 'x' && k >= prev).sort().map(k =>
+    `<label class="tag">Reason, ${k}<input class="r" data-rid="${h.id}" data-day="${k}" value="${esc(h.reasons[k] || '')}" placeholder="optional"></label>`).join('') : ''
+  const btn = (l, a) => `<button class="b s" data-act='${JSON.stringify(a)}'>${l}</button>`
+  const ctr = [
+    h.kind !== 'number' ? btn('Start ' + h.timerMin + '-min timer', { type: 'timer', id: h.id }) : '',
+    h.kind !== 'number' ? btn('From widget', { type: 'timer', id: h.id, from: 'widget' }) : '',
+    h.kind === 'reduce' ? btn('Resisted urge', { type: 'resist', id: h.id }) + btn('It happened', { type: 'slip', id: h.id }) + btn(h.budget ? 'Remove budget' : 'Set budget 3', { type: 'budget', id: h.id, v: h.budget ? 0 : 3 }) : '',
+    h.kind === 'number' ? btn('+1 hour today', { type: 'value', id: h.id, v: 1 }) : '',
+    btn(h.paused ? 'Resume' : 'Move to Later', { type: 'pause', id: h.id })
+  ].join('')
+  return `<article class="card${h.paused ? ' paused' : ''}"><h3>${esc(h.name)}</h3><div class="kind">${kindLabel[h.kind]}${h.paused ? ' · Later' : ''}${h.note ? ' · ' + h.note : ''}</div>
+   <div class="nums"><b>${M.total(h)}</b><span>total, only grows</span>${st ? `<span>streak ${st.n} ${st.unit}</span>` : '<span>no streak</span>'}</div>
+   <div class="tag">${esc(M.thisWeek(h, S))}</div>
+   <div class="strip"><div class="wk">Last week</div>${cells(prev)}<div class="wk">This week</div>${cells(cur)}</div>
+   <div class="tag">Trend, 8 weeks</div><div class="trend">${tr.map(v => `<i style="height:${v / mx * 100}%" title="${v}"></i>`).join('')}</div>
+   ${reasons}<div class="row">${ctr}</div></article>`
+}
+
+function render() {
+  const sc = M.score(S, S.today), t = S.timer, th = t && S.habits.find(h => h.id === t.hid)
+  const clock = c => isFinite(c) ? String(Math.floor(c / 60)).padStart(2, '0') + ':' + String(c % 60).padStart(2, '0') : ''
+  $('bar').innerHTML = `<div><div class="tag">Today</div><b>${S.today} ${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][M.dow(S.today)]} ${clock(S.clock)}</b></div>
+   <div><div class="tag">Daily score (every-day build only)</div><span class="big${sc.x ? '' : ' zero'}">${sc.x} / ${sc.n}</span></div>
+   <div><div class="tag">Week starts</div><b>${['Sunday','Monday'][S.weekStart]}</b></div>
+   <div><div class="tag">Timer</div><b>${t ? esc(th.name) + ' until ' + clock(t.endsAt) + (S.clock >= t.endsAt ? ' (ended, waiting)' : '') : 'none'}</b></div>
+   <div><div class="tag">Notifications</div><b>${S.perm ? 'allowed' : 'denied'}</b></div>`
+  const notes = []
+  if (S.confirm) notes.push(`<div class="note">Another timer is running. Cancel it and start ${esc(S.habits.find(h => h.id === S.confirm).name)}? <span class="row"><button class="b s" data-act='{"type":"timer","id":"${S.confirm}","force":true}'>Cancel and start</button><button class="b s" data-act='{"type":"keep"}'>Keep current</button></span></div>`)
+  if (t && th.replacement) notes.push(`<div class="note">While the timer runs: <b>${esc(th.replacement)}</b></div>`)
+  if (t && !S.perm) notes.push(`<div class="note refuse">Turn on notifications so the timer shows on the lock screen. It still counts when you reopen the app.</div>`)
+  for (const p of M.prompts(S)) notes.push(p.type === 'restart'
+    ? `<div class="note">Restart: <b>${esc(p.h)}</b> was missed yesterday. Try a ${p.min}-minute start today, not a catch-up.</div>`
+    : `<div class="note">Two misses in a row: <b>${esc(p.h)}</b>.<br>${p.reasons.map(r => esc(r[0]) + ': ' + esc(r[1])).join('<br>')}<br>Change the time, make it smaller, or keep it? <span class="row"><button class="b s" data-log="Opens edit habit">Change</button><button class="b s" data-log="Answer not stored">Smaller</button><button class="b s" data-log="Answer not stored">Keep</button></span></div>`)
+  const rv = M.review(S)
+  if (rv) notes.push(`<div class="note"><b>Weekly review, week of ${rv.week}</b><br>${rv.rows.map(r => esc(r.h) + ': ' + esc(r.line) + (r.avg ? ' · avg ' + r.avg : '') + (r.reasons.length ? '<br>&nbsp;&nbsp;Reasons: ' + r.reasons.map(x => esc(x[0]) + ' "' + esc(x[1]) + '"').join('; ') : '')).join('<br>')}<div class="row"><button class="b s" data-act='{"type":"dismiss"}'>Dismiss</button></div></div>`)
+  $('notes').innerHTML = notes.join('')
+  $('cards').innerHTML = S.habits.map(card).join('')
+  $('avoid').innerHTML = `<h2>Avoid list</h2>${S.avoid.map(a => `<div class="note">${esc(a.name)} → instead: <b>${esc(a.instead)}</b>. Never logged or scored.</div>`).join('')}`
+  $('log').innerHTML = log.map(l => `<li>${esc(l)}</li>`).join('')
+  renderTab()
+}
+
+const free = [
+  ['Next day', { type: 'day' }], ['Wait 5 min', { type: 'wait', m: 5 }], ['Wait 20 min', { type: 'wait', m: 20 }],
+  ['Open app', { type: 'open' }], ['Stop timer early', { type: 'stop' }], ['Toggle notifications', { type: 'perm' }],
+  ['Week starts Sunday', { type: 'weekStart', v: 0 }], ['Week starts Monday', { type: 'weekStart', v: 1 }],
+  ['Toggle restart rule', { type: 'rule', k: 'restart' }], ['Toggle two-miss rule', { type: 'rule', k: 'twoMiss' }]
+]
+$('free').innerHTML = free.map(([l, a]) => `<button class="b" data-act='${JSON.stringify(a)}'>${l}</button>`).join('') + '<button class="b" id="reset">Reset</button>'
+
+const Y = '2026-11-23', Y2 = '2026-11-22'
+const tours = [
+  { name: '2.0 habit', text: '"Read 10 pages" is a 2.0 habit: only marks. Watch: same streak rule as 2.0, total is the big number, score counts it.', steps: [
+    ['Mark today done', { type: 'mark', id: 'read', day: '2026-11-24' }],
+    ['Click today again → missed (grey)', { type: 'mark', id: 'read', day: '2026-11-24' }],
+    ['Click again → blank. Streak back, not a miss', { type: 'mark', id: 'read', day: '2026-11-24' }] ] },
+  { name: 'Blank vs missed', text: 'Only an explicit miss starts the gentle rules. Blank days do nothing. Watch the prompts above the cards.', steps: [
+    ['Set yesterday blank (cycle to blank)', { type: 'setBlank', id: 'read', day: Y }],
+    ['Mark yesterday missed → restart prompt', { type: 'setX', id: 'read', day: Y }],
+    ['Write reason for yesterday', { type: 'reason', id: 'read', day: Y, text: 'late meeting' }],
+    ['Mark day before missed → two-miss prompt', { type: 'setX', id: 'read', day: Y2 }],
+    ['Write reason for day before', { type: 'reason', id: 'read', day: Y2, text: 'travel' }],
+    ['Try a reason on a done day (should refuse)', { type: 'reason', id: 'read', day: '2026-11-20', text: 'x' }],
+    ['Mark today done → prompts go away', { type: 'mark', id: 'read', day: '2026-11-24' }] ] },
+  { name: 'Reduce budget', text: 'Resisted urges are the main number. Without a budget, the app refuses to log how often it happened.', steps: [
+    ['Resist an urge', { type: 'resist', id: 'scroll' }],
+    ['"It happened" with no budget (refused)', { type: 'slip', id: 'scroll' }],
+    ['Set budget 3 a week', { type: 'budget', id: 'scroll', v: 3 }],
+    ['It happened', { type: 'slip', id: 'scroll' }], ['It happened', { type: 'slip', id: 'scroll' }],
+    ['It happened', { type: 'slip', id: 'scroll' }], ['It happened → 4 of 3 (current week does not break streak)', { type: 'slip', id: 'scroll' }],
+    ['Jump to next week (5 days)', { type: 'days', n: 5 }] ] },
+  { name: 'Week start', text: 'Speaking practice is 3 a week. Today is Tuesday. Switching the week start moves days between weeks; nothing is stored per week.', steps: [
+    ['Tick Sunday', { type: 'setT', id: 'speak', day: Y2 }], ['Tick Monday', { type: 'setT', id: 'speak', day: Y }],
+    ['Tick today → 3 / 3, week streak +1', { type: 'setT', id: 'speak', day: '2026-11-24' }],
+    ['Week starts Monday → Sunday leaves this week', { type: 'weekStart', v: 1 }],
+    ['Back to Sunday', { type: 'weekStart', v: 0 }] ] },
+  { name: 'Timers', text: 'One timer at a time. Stop early counts nothing. Without notification permission, the result waits until you open the app.', steps: [
+    ['Start 20-min delay on Phone scrolling', { type: 'timer', id: 'scroll' }],
+    ['Start reading timer → asks to cancel', { type: 'timer', id: 'read' }],
+    ['Keep current', { type: 'keep' }], ['Stop early → nothing counted', { type: 'stop' }],
+    ['Deny notifications', { type: 'perm' }], ['Start from widget', { type: 'timer', id: 'scroll', from: 'widget' }],
+    ['Wait 20 min → not counted yet', { type: 'wait', m: 20 }], ['Open app → +1 resisted', { type: 'open' }] ] },
+  { name: 'Review', text: 'The review shows on the last day of the week (Saturday when the week starts Sunday), with reasons as plain text.', steps: [
+    ['Mark yesterday missed', { type: 'setX', id: 'read', day: Y }], ['Reason: "late meeting"', { type: 'reason', id: 'read', day: Y, text: 'late meeting' }],
+    ['Go to Saturday (4 days)', { type: 'days', n: 4 }], ['Dismiss review', { type: 'dismiss' }] ] }
+]
+/* scenario helpers built from real actions */
+function macro(a) {
+  if (a.type === 'days') { let r; for (let i = 0; i < a.n; i++) r = run({ type: 'day' }); return r }
+  const want = { setBlank: undefined, setX: 'x', setT: 't' }
+  if (a.type in want) { let g = 0, r
+    while (S.habits.find(x => x.id === a.id).marks[a.day] !== want[a.type] && g++ < 3) { r = M.act(S, { type: 'mark', id: a.id, day: a.day }); S = r.s }
+    log.unshift(r ? r.msg : 'Already set'); return render() }
+  return run(a)
+}
+$('tabs').innerHTML = tours.map((t, i) => `<button class="b s" role="tab" data-tab="${i}">${t.name}</button>`).join('')
+function renderTab() {
+  const t = tours[tab]
+  document.querySelectorAll('[data-tab]').forEach(b => b.setAttribute('aria-selected', +b.dataset.tab === tab))
+  $('tab').innerHTML = `<p>${t.text}</p><ol class="steps">${t.steps.map(([l], i) =>
+    `<li class="${i < step ? 'done' : ''}"><button class="b s" data-step="${i}" ${i !== step ? 'disabled' : ''}>${l}</button></li>`).join('')}</ol>
+    ${step >= t.steps.length ? '<p class="tag">Done. Pick another tab or free-play.</p>' : ''}`
+}
+
+document.addEventListener('click', e => {
+  const c = e.target.closest('.cell'); if (c) return run({ type: 'mark', id: c.dataset.id, day: c.dataset.day })
+  const a = e.target.closest('[data-act]'); if (a) return run(JSON.parse(a.dataset.act))
+  const l = e.target.closest('[data-log]'); if (l) { log.unshift(l.dataset.log); return render() }
+  const tb = e.target.closest('[data-tab]'); if (tb) { tab = +tb.dataset.tab; step = 0; S = M.initial(); log = ['Walkthrough "' + tours[tab].name + '" started from a fresh state']; return render() }
+  const sp = e.target.closest('[data-step]'); if (sp) { const t = tours[tab]; step++; macro(t.steps[+sp.dataset.step][1]); return render() }
+  if (e.target.id === 'reset') { S = M.initial(); step = 0; log = ['Reset']; render() }
+})
+document.addEventListener('change', e => { const r = e.target.closest('[data-rid]'); if (r) run({ type: 'reason', id: r.dataset.rid, day: r.dataset.day, text: r.value.trim() }) })
+log = ['Prototype loaded. Today is Tuesday 24 Nov 2026.']
+render()
+}
+</script>
+</body>
+</html>
