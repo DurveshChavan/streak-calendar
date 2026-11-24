@@ -1,12 +1,9 @@
-// Date helpers + Indian holiday / Panchang engine, ported 1:1 from the design.
 export const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
 export const WD = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
 const MASA = ['Chaitra','Vaishakh','Jyeshtha','Ashadh','Shravan','Bhadrapad','Ashwin','Kartik','Margashirsha','Paush','Magh','Phalgun']
 const TITHI = ['Pratipada','Dwitiya','Tritiya','Chaturthi','Panchami','Shashthi','Saptami','Ashtami','Navami','Dashami','Ekadashi','Dwadashi','Trayodashi','Chaturdashi']
 const FIXED: Record<string,string> = {'01-26':'Republic Day','02-19':'Chhatrapati Shivaji Maharaj Jayanti','04-14':'Dr. Babasaheb Ambedkar Jayanti','05-01':'Maharashtra Din','08-15':'Independence Day','10-02':'Gandhi Jayanti','12-25':'Christmas'}
-// Exact published dates where known; other years are calculated
 const KNOWN: Record<number, Record<string,string>> = {2026:{'2026-02-15':'Mahashivratri','2026-03-03':'Holi (Dhulivandan)','2026-03-19':'Gudhi Padwa','2026-03-21':'Ramzan Eid','2026-03-26':'Ram Navami','2026-03-31':'Mahavir Jayanti','2026-04-03':'Good Friday','2026-05-01':'Buddha Pournima','2026-05-28':'Bakri Eid','2026-06-26':'Muharram','2026-08-15':'Parsi New Year','2026-08-26':'Id-e-Milad','2026-09-14':'Ganesh Chaturthi','2026-10-20':'Dasara','2026-11-08':'Diwali (Lakshmi Pujan)','2026-11-10':'Diwali (Bali Pratipada)','2026-11-11':'Bhaubeej','2026-11-24':'Guru Nanak Jayanti'}}
-// [name, masa, tithi, hourUTC, dayOffset]
 const LUNAR: [string,number,number,number,number][] = [['Mahashivratri',10,28,18.5,0],['Holi (Dhulivandan)',11,14,13,1],['Gudhi Padwa',0,0,0.75,0],['Ram Navami',0,8,0.75,0],['Mahavir Jayanti',0,12,0.75,0],['Buddha Pournima',1,14,0.75,0],['Ganesh Chaturthi',5,3,0.75,0],['Dasara',6,9,0.75,0],['Diwali (Lakshmi Pujan)',6,29,13,0],['Diwali (Bali Pratipada)',7,0,0.75,0],['Bhaubeej',7,1,0.75,0],['Guru Nanak Jayanti',7,14,0.75,0]]
 const ISLAMIC: [string,number,number][] = [['Muharram',1,10],['Id-e-Milad',3,12],['Ramzan Eid',10,1],['Bakri Eid',12,10]]
 

@@ -1,7 +1,7 @@
 // Backup & restore as plain text (JSON), so data can always be carried to a new install or a new phone.
 // Restore merges: it never deletes anything already on this device.
 import type { Doc, Habit } from './store'
-import type { Mark } from './streaks'
+import type { Mark } from '../domain/types'
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/
 
