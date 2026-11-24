@@ -50,6 +50,7 @@ public class StreakWidgetProvider extends AppWidgetProvider {
             int id = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID);
             if (id == AppWidgetManager.INVALID_APPWIDGET_ID) return;
             WidgetData data = WidgetData.parse(WidgetPrefs.data(ctx));
+            data.overlay(TimerStore.finished(ctx));
             WidgetPrefs p = WidgetPrefs.load(ctx, id);
             p.habitId = data.habits.get((data.indexOf(p.habitId) + 1) % data.habits.size()).id;
             p.save(ctx, id);
@@ -100,6 +101,7 @@ public class StreakWidgetProvider extends AppWidgetProvider {
     static void update(Context ctx, AppWidgetManager mgr, int id) {
         try {
             WidgetData data = WidgetData.parse(WidgetPrefs.data(ctx));
+            data.overlay(TimerStore.finished(ctx));
             WidgetPrefs p = WidgetPrefs.load(ctx, id);
             float[] px = renderSize(ctx, sizeDp(ctx, mgr, id));
             Bitmap bmp = WidgetRenderer.render(layout(data, p, px), (int) px[0], (int) px[1]);
@@ -107,7 +109,8 @@ public class StreakWidgetProvider extends AppWidgetProvider {
             RemoteViews rv = new RemoteViews(ctx.getPackageName(), R.layout.widget_streak);
             rv.setImageViewBitmap(R.id.widget_image, bmp);
             WidgetData.Habit hab = data.habits.get(data.indexOf(p.habitId));
-            rv.setContentDescription(R.id.widget_image, hab.name + ": " + WidgetData.currentStreak(hab.marks, WidgetData.keyOf(Calendar.getInstance())) + "-day streak");
+            String[] bd = data.badge(hab, WidgetData.keyOf(Calendar.getInstance())).split("\\|", 2);
+            rv.setContentDescription(R.id.widget_image, hab.name + ": " + bd[0] + " total, " + bd[1]);
             Intent launch = ctx.getPackageManager().getLaunchIntentForPackage(ctx.getPackageName());
             PendingIntent open = launch == null ? null : PendingIntent.getActivity(ctx, 0, launch, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
             if (open != null) {
