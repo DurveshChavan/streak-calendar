@@ -43,7 +43,7 @@ jobs:
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: |
           set -o pipefail
-          if [ "$RELEASE" = true ]; then TASKS="testReleaseUnitTest assembleRelease"; else TASKS="testDebugUnitTest assembleDebug"; fi
+          if [ "$RELEASE" = true ]; then TASKS="testProdReleaseUnitTest assembleProdRelease assembleBetaRelease"; else TASKS="testProdDebugUnitTest assembleProdDebug assembleBetaDebug"; fi
           ./gradlew $TASKS --stacktrace 2>&1 | tee build.log || {
             # surface the real error as annotations (readable on the run page without digging through logs)
             { grep -E "\.java:[0-9]+: error|\.xml.*error|AAPT|error:|FAILED" build.log | head -15; sed -n '/What went wrong/,/Try:/p' build.log | head -25; } | grep -v "^> Task" | while IFS= read -r l; do echo "::error::$l"; done
@@ -52,11 +52,12 @@ jobs:
       - name: Name the APK
         id: apk
         run: |
-          if [ "$RELEASE" = true ]; then V="$GITHUB_REF_NAME"; SRC=android/app/build/outputs/apk/release/app-release.apk
-          else V="dev-$(git rev-parse --short HEAD)"; SRC=android/app/build/outputs/apk/debug/app-debug.apk; fi
+          if [ "$RELEASE" = true ]; then V="$GITHUB_REF_NAME"; SRC=android/app/build/outputs/apk/prod/release/app-prod-release.apk; BETA=android/app/build/outputs/apk/beta/release/app-beta-release.apk
+          else V="dev-$(git rev-parse --short HEAD)"; SRC=android/app/build/outputs/apk/prod/debug/app-prod-debug.apk; BETA=android/app/build/outputs/apk/beta/debug/app-beta-debug.apk; fi
           cp "$SRC" "StreakCalendar-$V.apk" && echo "file=StreakCalendar-$V.apk" >> "$GITHUB_OUTPUT"
+          cp "$BETA" "StreakCalendarBeta-$V.apk" && echo "beta=StreakCalendarBeta-$V.apk" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v4
-        with: { name: streak-calendar-apk, path: '${{ steps.apk.outputs.file }}' }
+        with: { name: streak-calendar-apk, path: "${{ steps.apk.outputs.file }}\n${{ steps.apk.outputs.beta }}" }
       - name: Publish the release
         if: env.RELEASE == 'true'
         uses: softprops/action-gh-release@v2

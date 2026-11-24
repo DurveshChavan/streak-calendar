@@ -17,8 +17,8 @@ fi
 [ -d node_modules ] || npm ci
 npm run build
 npx cap sync android
-(cd android && ./gradlew assembleDebug)
+(cd android && ./gradlew assembleProdDebug)
 
-APK=android/app/build/outputs/apk/debug/app-debug.apk
+APK=android/app/build/outputs/apk/prod/debug/app-prod-debug.apk
 for d in $DEVICES; do echo "Installing on $d"; adb -s "$d" install -r "$APK"; done
 echo "Done. Long-press the home screen > Widgets > Streak Calendar to add the widget."
