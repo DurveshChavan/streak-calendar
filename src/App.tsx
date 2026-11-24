@@ -661,7 +661,7 @@ export default class App extends React.Component<Props, State> {
                 )
               })())}
             </div>
-            <button className="glassfade" onClick={() => this.setState({ hEdit: 'new' })} style={{ ...btnY, height: 48, borderRadius: 14, font: `600 15px/1 ${FONT}` }}>+ New habit</button>
+            <button className="glassfade" onClick={() => this.setState({ hEdit: 'new' })} style={{ ...btnY, flex: 'none', height: 48, borderRadius: 14, font: `600 15px/1 ${FONT}` }}>+ New habit</button>
             {s.habits.some(h => h.later) && <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <div style={lbl}>Later</div>
               {s.habits.filter(h => h.later).map(h => (
