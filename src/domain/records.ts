@@ -53,7 +53,8 @@ export function rebuild(flat: Flat, prev: Doc): Doc {
       h.marks = {}
       hs.push(h)
     } else if (k.startsWith('avoid:')) av.push({ id: k.slice(6), name: v.name, replacement: v.replacement, order: v.order })
-    else if (k.startsWith('set:') && (SETTINGS as string[]).includes(k.slice(4))) (settings as any)[k.slice(4)] = v
+    else if (k === 'set:weekStart' && Number.isInteger(v) && v >= 0 && v <= 6) settings.weekStart = v
+    else if (k === 'set:missRules' && typeof v === 'boolean') settings.missRules = v
   }
   const byOrder = (a: { order: number; id: string }, b: { order: number; id: string }) => a.order - b.order || a.id.localeCompare(b.id)
   hs.sort(byOrder); av.sort(byOrder)

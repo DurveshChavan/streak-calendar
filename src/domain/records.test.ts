@@ -71,3 +71,12 @@ test('the current habit falls back to an active one when it is in Later', () => 
   assert.equal(d.cur, 'b')
   assert.equal(rebuild(flatten(d), { ...d, cur: 'a' }).cur, 'b')
 })
+
+test('synced settings with a wrong type fall back to the defaults', () => {
+  const base = flatten(normalize(null, null))
+  for (const [weekStart, missRules] of [['x', 'yes'], [9, 1], [2.5, null], [-1, 'false']] as const) {
+    const d = rebuild({ ...base, 'set:weekStart': weekStart, 'set:missRules': missRules }, normalize(null, null))
+    assert.deepEqual(d.settings, { weekStart: 0, missRules: true })
+  }
+  assert.deepEqual(rebuild({ ...base, 'set:weekStart': 3, 'set:missRules': false }, normalize(null, null)).settings, { weekStart: 3, missRules: false })
+})
