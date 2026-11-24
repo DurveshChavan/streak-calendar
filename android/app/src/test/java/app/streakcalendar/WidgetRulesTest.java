@@ -105,4 +105,18 @@ public class WidgetRulesTest {
         assertEquals("4|urges resisted", d.badge(d.habits.get(2), t));
         assertEquals("12.5|pages in total", d.badge(d.habits.get(3), t));
     }
+
+    @Test
+    public void actionWidgetTextFollowsTheKind() {
+        WidgetData d = WidgetData.parse("{\"v\":3,\"habits\":["
+                + "{\"id\":\"a\",\"name\":\"Run\",\"marks\":{\"2026-11-24\":\"t\"}},"
+                + "{\"id\":\"w\",\"name\":\"Speak\",\"kind\":\"weekly\",\"goal\":3,\"timerMin\":10,\"marks\":{\"2026-11-24\":\"t\",\"2026-11-23\":\"t\"}},"
+                + "{\"id\":\"r\",\"name\":\"Phone\",\"kind\":\"reduce\",\"budget\":5,\"marks\":{},\"urges\":{\"2026-11-24\":6},\"slips\":{\"2026-11-24\":4}},"
+                + "{\"id\":\"n\",\"name\":\"Pages\",\"kind\":\"number\",\"target\":70,\"unit\":\"pages\",\"marks\":{},\"values\":{\"2026-11-24\":32.5}}]}");
+        String t = "2026-11-25";
+        assertArrayEquals(new String[]{"Run", "1", "1 / 7 this week", "Start 5 min"}, d.actionText(d.habits.get(0), t));
+        assertArrayEquals(new String[]{"Speak", "2", "2 / 3 this week", "Start 10 min"}, d.actionText(d.habits.get(1), t));
+        assertArrayEquals(new String[]{"Phone", "6", "urges resisted · 4 of 5 used", "Delay 20 min"}, d.actionText(d.habits.get(2), t));
+        assertArrayEquals(new String[]{"Pages", "32.5", "32.5 / 70 pages this week", ""}, d.actionText(d.habits.get(3), t));
+    }
 }

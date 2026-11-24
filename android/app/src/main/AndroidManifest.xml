@@ -66,6 +66,19 @@
         </activity>
 
         <receiver
+            android:name=".ActionWidgetProvider"
+            android:exported="true"
+            android:label="@string/action_widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="android.intent.action.DATE_CHANGED" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/action_widget_info" />
+        </receiver>
+
+        <receiver
             android:name=".TimerReceiver"
             android:exported="false" />
 
