@@ -1,6 +1,6 @@
 import { pushWidget } from './widget.ts'
 import { normalize, flatten, rebuild, PROTOCOL, type Flat } from '../domain/records.ts'
-import type { Doc } from '../domain/types.ts'
+import { DEFAULT_SETTINGS, type Doc } from '../domain/types.ts'
 export type { Doc, Habit } from '../domain/types.ts'
 
 const STORE = 'streakcal.v1', STORE2 = 'streakcal.v2', SYNC = 'streakcal.sync'
@@ -42,7 +42,8 @@ class Store {
     this.doc = doc
     try { localStorage.setItem(STORE2, JSON.stringify(doc)) } catch { }
     const next = flatten(doc), prev = this.meta.flat, now = stamp ?? Date.now(), dirty = new Set(this.meta.dirty)
-    for (const k of Object.keys(next)) if (JSON.stringify(next[k]) !== JSON.stringify(prev[k])) { this.meta.ts[k] = now; dirty.add(k) }
+    const unset = (k: string) => !(k in prev) && k.startsWith('set:') && next[k] === DEFAULT_SETTINGS[k.slice(4) as keyof typeof DEFAULT_SETTINGS]
+    for (const k of Object.keys(next)) if (JSON.stringify(next[k]) !== JSON.stringify(prev[k])) { this.meta.ts[k] = unset(k) ? 0 : now; dirty.add(k) }
     for (const k of Object.keys(prev)) if (!(k in next) && prev[k] != null) { this.meta.ts[k] = now; dirty.add(k); next[k] = null }
     this.meta.flat = next; this.meta.dirty = [...dirty]; this.saveMeta()
     if (!silent) { pushWidget(doc); this.schedule(700) }
