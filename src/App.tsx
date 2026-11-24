@@ -5,7 +5,7 @@ import { App as NativeApp } from '@capacitor/app'
 import { MONTHS, WD, pad, keyOf, parse, holiday, holidaysFor, isoWeek, dayOfYear, short, panchang, tithiLabel } from './domain/calendar'
 import { streaks as calcStreaks, peaks as calcPeaks, nextMs, type Marks, type Mark } from './domain/streaks'
 import { store, type Doc, type Habit } from './lib/store'
-import type { AvoidItem, Settings } from './domain/types'
+import type { AvoidItem, Settings, WeekStart } from './domain/types'
 import { setSystemBars } from './lib/widget'
 import { makeBackup, parseBackup, mergeBackup, countOf, type Parsed } from './lib/backup'
 
@@ -338,11 +338,11 @@ export default class App extends React.Component<Props, State> {
 
   renderVals() {
     const s = this.state, t = this.today(), dark = s.theme === 'dark', H = this.habit(), M = H.marks, nH = s.habits.length, hi = this.hIdx(), still = !!s.instant, flat = this.rm()
-    const first = new Date(s.y, s.m, 1), weeks: any[] = []; let mt = 0, mx = 0
+    const ws = s.settings.weekStart, first = new Date(s.y, s.m, 1), lead = (first.getDay() - ws + 7) % 7, weeks: any[] = []; let mt = 0, mx = 0
     for (let c = 0; c < 6; c++) {
       const days: any[] = []
       for (let r = 0; r < 7; r++) {
-        const dt = new Date(s.y, s.m, 1 - first.getDay() + c * 7 + r)
+        const dt = new Date(s.y, s.m, 1 - lead + c * 7 + r)
         const k = keyOf(dt), out = dt.getMonth() !== s.m, mark = M[k] as Mark | undefined, hol = holiday(k), red = dt.getDay() === 0 || !!hol, isToday = k === t
         if (!out) { if (mark === 't') mt++; if (mark === 'x') mx++ }
         const dx = s.drag && s.drag.k === k ? s.drag.dx : 0, q = Math.min(1, Math.abs(dx) / 24)
@@ -363,7 +363,7 @@ export default class App extends React.Component<Props, State> {
           r: fx(turn ? faceVals(was, was, 1, isToday, red) : faceVals(base, tL, pL, isToday, red), 90, sides),
           aria: WD[dt.getDay()] + ' ' + dt.getDate() + ' ' + MONTHS[dt.getMonth()] + (out ? ' (other month)' : '') + (hol ? ', ' + hol : '') + (mark === 't' ? ', done' : mark === 'x' ? ', missed' : '') })
       }
-      const mon = new Date(s.y, s.m, 1 - first.getDay() + c * 7 + 1)
+      const mon = new Date(s.y, s.m, 1 - lead + c * 7 + (1 - ws + 7) % 7)
       weeks.push({ wk: 'W' + isoWeek(mon), days })
     }
     const st = this.streaks(M), nx = nextMs(st.cur)
@@ -460,7 +460,7 @@ export default class App extends React.Component<Props, State> {
             <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4, width: 18, flex: 'none' }}>
                 {sw && <div className="wkn" style={{ height: 14 }} />}
-                {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => <div key={i} style={{ height: 'var(--c)', display: 'grid', placeItems: 'center', font: `${i === 0 ? 700 : 500} 14px/1 sans-serif`, color: i === 0 ? 'var(--red)' : undefined }}>{d}</div>)}
+                {[0, 1, 2, 3, 4, 5, 6].map(i => (i + s.settings.weekStart) % 7).map(i => <div key={i} style={{ height: 'var(--c)', display: 'grid', placeItems: 'center', font: `${i === 0 ? 700 : 500} 14px/1 sans-serif`, color: i === 0 ? 'var(--red)' : undefined }}>{'SMTWTFS'[i]}</div>)}
               </div>
               <div data-anim="grid" style={{ display: 'flex', gap: 4 }}>
                 {weeks.map((w: any, wi: number) => (
@@ -583,6 +583,12 @@ export default class App extends React.Component<Props, State> {
               <button className="glassfade" onClick={() => this.addHabit()} style={{ ...btnY, height: 48, padding: '0 18px', borderRadius: 14, font: `600 15px/1 ${FONT}` }}>Add</button>
             </div>
 
+            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, font: `300 13px/1.3 ${FONT}` }}>
+              Week starts on
+              <select value={s.settings.weekStart} onChange={e => this.save({ settings: { ...s.settings, weekStart: +e.target.value as WeekStart } })} style={{ font: `400 13px/1 ${FONT}`, color: 'inherit', background: 'var(--cell)', border: '1px solid var(--line)', borderRadius: 9, padding: '6px 8px' }}>
+                {WD.map((d, i) => <option key={i} value={i}>{d}</option>)}
+              </select>
+            </label>
             <button className="tap" onClick={() => this.setState({ syncOpen: !s.syncOpen })} aria-expanded={s.syncOpen} style={{ all: 'unset', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, font: `300 13px/1.3 ${FONT}` }}>
               <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: '50%', flex: 'none', background: store.state === 'idle' ? 'var(--tick)' : store.state === 'off' ? 'var(--line)' : store.state === 'syncing' ? 'var(--c10)' : 'var(--cross)' }} />
               {this.syncLabel()}
