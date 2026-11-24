@@ -28,15 +28,23 @@ final class TimerStore {
         sp(ctx).edit().putString(KEY, s.toJson()).apply();
     }
 
-    static synchronized TimerState.Timer current(Context ctx) {
+    private static TimerState due(Context ctx) {
         TimerState s = load(ctx);
-        TimerState.Timer t = s.current(System.currentTimeMillis());
-        save(ctx, s);
-        return t;
+        TimerState.Timer was = s.running;
+        s.finishDue(System.currentTimeMillis());
+        if (was != null && s.running == null) {
+            save(ctx, s);
+            TimerNotifier.showDone(ctx, was, habitName(ctx, was.habitId));
+        }
+        return s;
+    }
+
+    static synchronized TimerState.Timer current(Context ctx) {
+        return due(ctx).running;
     }
 
     static synchronized TimerState.Timer start(Context ctx, String habitId, String kind, int minutes) {
-        TimerState s = load(ctx);
+        TimerState s = due(ctx);
         TimerState.Timer t = s.start(habitId, kind, minutes, System.currentTimeMillis());
         save(ctx, s);
         TimerNotifier.showRunning(ctx, t, habitName(ctx, habitId));
@@ -56,28 +64,19 @@ final class TimerStore {
     }
 
     static synchronized JSONArray drain(Context ctx) {
-        TimerState s = load(ctx);
+        TimerState s = due(ctx);
         JSONArray out = s.drain(System.currentTimeMillis());
         save(ctx, s);
         return out;
     }
 
     static synchronized void onEnd(Context ctx) {
-        TimerState s = load(ctx);
-        int before = s.finished.size();
-        s.finishDue(System.currentTimeMillis());
-        save(ctx, s);
-        if (s.finished.size() > before) {
-            TimerState.Timer t = s.finished.get(s.finished.size() - 1);
-            TimerNotifier.showDone(ctx, t, habitName(ctx, t.habitId));
-        }
+        due(ctx);
         StreakWidgetProvider.refreshAll(ctx);
     }
 
     static synchronized java.util.List<TimerState.Timer> finished(Context ctx) {
-        TimerState s = load(ctx);
-        s.finishDue(System.currentTimeMillis());
-        return new java.util.ArrayList<>(s.finished);
+        return new java.util.ArrayList<>(due(ctx).finished);
     }
 
     static String habitName(Context ctx, String id) {

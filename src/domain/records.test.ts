@@ -60,3 +60,14 @@ test('zero counts and empty text are not stored', () => {
 test('a 2.0 habit reads as build daily', () => {
   assert.equal(kindOf(normalize(JSON.parse(JSON.stringify(v2)), null).habits[0]), 'daily')
 })
+
+test('a number value of 0 is kept in sync records', () => {
+  const d = normalize({ habits: [{ id: 'n', name: 'N', kind: 'number', marks: {}, values: { '2026-11-25': 0 } }] }, null)
+  assert.equal(flatten(d)['val:n:2026-11-25'], 0)
+  assert.equal(rebuild(flatten(d), d).habits[0].values!['2026-11-25'], 0)
+})
+test('the current habit falls back to an active one when it is in Later', () => {
+  const d = normalize({ habits: [{ id: 'a', name: 'A', later: true, marks: {} }, { id: 'b', name: 'B', marks: {} }], cur: 'a' }, null)
+  assert.equal(d.cur, 'b')
+  assert.equal(rebuild(flatten(d), { ...d, cur: 'a' }).cur, 'b')
+})
