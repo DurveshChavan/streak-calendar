@@ -1,11 +1,11 @@
-// Streak Calendar sync server: one shared SQLite DB, per-record last-write-wins, also serves the web build.
 import http from 'node:http'
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import { DatabaseSync } from 'node:sqlite'
 
-const KEY_RE = /^(habit|mark|note):[A-Za-z0-9_:.-]{1,100}$/
+const KEY_RE = /^(habit|mark|note|reason|urge|slip|val|avoid|set):[A-Za-z0-9_:.-]{1,100}$/
+const PROTOCOL = 3
 const MAX_BODY = 5 * 1024 * 1024
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.png': 'image/png', '.ico': 'image/x-icon', '.map': 'application/json' }
 
@@ -47,7 +47,7 @@ export function createApp({ dbFile, token, webRoot }) {
         const value = c.value === null || c.value === undefined ? null : JSON.stringify(c.value)
         if (value && value.length > 20000) continue
         const cur = getRow.get(c.key)
-        if (cur && cur.ts > c.ts) continue // server copy is newer: it wins and is sent back below
+        if (cur && cur.ts > c.ts) continue
         upsert.run(c.key, value, Math.floor(c.ts))
       }
       db.exec('COMMIT')
@@ -62,11 +62,12 @@ export function createApp({ dbFile, token, webRoot }) {
     const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'authorization, content-type', 'access-control-allow-methods': 'GET, POST, OPTIONS', 'access-control-max-age': '86400' }
     try {
       if (req.method === 'OPTIONS') { res.writeHead(204, cors); return res.end() }
-      if (url.pathname === '/api/health') return send(res, 200, { ok: true }, cors)
+      if (url.pathname === '/api/health') return send(res, 200, { ok: true, protocol: PROTOCOL }, cors)
       if (url.pathname === '/api/sync') {
         if (req.method !== 'POST') return send(res, 405, { error: 'method' }, cors)
         if (!authed(req)) return send(res, 401, { error: 'unauthorized' }, cors)
         let body; try { body = JSON.parse(await readBody(req) || '{}') } catch (e) { if (e.code === 413) return send(res, 413, { error: 'too large' }, cors); return send(res, 400, { error: 'bad json' }, cors) }
+        if (!(Number.isInteger(body.v) && body.v >= PROTOCOL)) return send(res, 426, { error: 'update the app', protocol: PROTOCOL }, cors)
         return send(res, 200, sync(body), cors)
       }
       if (url.pathname.startsWith('/api/')) return send(res, 404, { error: 'not found' }, cors)

@@ -1,7 +1,7 @@
-import { pushWidget } from './widget'
-import { normalize, flatten, rebuild, type Flat } from '../domain/records'
-import type { Doc } from '../domain/types'
-export type { Doc, Habit } from '../domain/types'
+import { pushWidget } from './widget.ts'
+import { normalize, flatten, rebuild, PROTOCOL, type Flat } from '../domain/records.ts'
+import type { Doc } from '../domain/types.ts'
+export type { Doc, Habit } from '../domain/types.ts'
 
 const STORE = 'streakcal.v1', STORE2 = 'streakcal.v2', SYNC = 'streakcal.sync'
 
@@ -12,7 +12,7 @@ export function loadDoc(): Doc {
 
 interface SyncMeta { url: string; token: string; seq: number; ts: Record<string, number>; flat: Flat; dirty: string[] }
 const emptyMeta = (): SyncMeta => ({ url: '', token: '', seq: 0, ts: {}, flat: {}, dirty: [] })
-export type SyncState = 'off' | 'idle' | 'syncing' | 'error' | 'offline' | 'auth'
+export type SyncState = 'off' | 'idle' | 'syncing' | 'error' | 'offline' | 'auth' | 'server'
 
 class Store {
   doc: Doc = loadDoc()
@@ -21,7 +21,7 @@ class Store {
   lastSync = 0
   private remoteCb: ((d: Doc) => void) | null = null
   private statusCb: (() => void) | null = null
-  private timer: any; private poll: any; private busy = false; private again = false
+  private timer: any; private poll: any; private busy = false; private again = false; private checked = ''
 
   constructor() {
     try { Object.assign(this.meta, JSON.parse(localStorage.getItem(SYNC) || '{}')) } catch { /* ignore */ }
@@ -70,12 +70,17 @@ class Store {
     if (this.busy) { this.again = true; return }
     this.busy = true; this.setState('syncing')
     try {
+      if (this.checked !== this.meta.url) {
+        const h = await fetch(this.meta.url + '/api/health').then(r => r.json())
+        if (!(h.protocol >= PROTOCOL)) { this.setState('server'); return }
+        this.checked = this.meta.url
+      }
       let more = true
       while (more) {
         const sent = [...this.meta.dirty]
         const changes = sent.map(k => ({ key: k, value: this.meta.flat[k] ?? null, ts: this.meta.ts[k] ?? Date.now() }))
         const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 15000)
-        const r = await fetch(this.meta.url + '/api/sync', { method: 'POST', signal: ctl.signal, headers: { 'content-type': 'application/json', authorization: 'Bearer ' + this.meta.token }, body: JSON.stringify({ since: this.meta.seq, changes }) }).finally(() => clearTimeout(to))
+        const r = await fetch(this.meta.url + '/api/sync', { method: 'POST', signal: ctl.signal, headers: { 'content-type': 'application/json', authorization: 'Bearer ' + this.meta.token }, body: JSON.stringify({ v: PROTOCOL, since: this.meta.seq, changes }) }).finally(() => clearTimeout(to))
         if (r.status === 401) { this.setState('auth'); return }
         if (!r.ok) throw new Error('HTTP ' + r.status)
         const res = await r.json()

@@ -5,6 +5,7 @@ import { App as NativeApp } from '@capacitor/app'
 import { MONTHS, WD, pad, keyOf, parse, holiday, holidaysFor, isoWeek, dayOfYear, short, panchang, tithiLabel } from './domain/calendar'
 import { streaks as calcStreaks, peaks as calcPeaks, nextMs, type Marks, type Mark } from './domain/streaks'
 import { store, type Doc, type Habit } from './lib/store'
+import type { AvoidItem, Settings } from './domain/types'
 import { setSystemBars } from './lib/widget'
 import { makeBackup, parseBackup, mergeBackup, countOf, type Parsed } from './lib/backup'
 
@@ -49,7 +50,7 @@ function CubeFace({ name, v, num }: { name: string; v: Face; num: number }) {
 
 interface Props { showWeekNumbers?: boolean; haptics?: boolean }
 interface State {
-  y: number; m: number; habits: Habit[]; cur: string; notes: Record<string, string>; theme: 'light' | 'dark'
+  y: number; m: number; habits: Habit[]; cur: string; notes: Record<string, string>; theme: 'light' | 'dark'; avoid: AvoidItem[]; settings: Settings
   sel: string | null; drag: { k: string; dx: number; dur: number } | null; lastDrag: string | null; snap: string | null
   turn: { k: string; from: Mark | null; dir: number; ph: number } | null; settle: { k: string; from: Mark | null; to: Mark | null; dir: number; dur: number } | null
   toast: { k: string; prev: Mark | null; hid: string; text: string } | null; toastOut: boolean; closing: boolean; instant: boolean
@@ -68,10 +69,10 @@ export default class App extends React.Component<Props, State> {
   constructor(p: Props) {
     super(p)
     const d = store.doc, t = new Date()
-    this.state = { y: t.getFullYear(), m: t.getMonth(), habits: d.habits, cur: d.cur, notes: d.notes, theme: d.theme,
+    this.state = { y: t.getFullYear(), m: t.getMonth(), habits: d.habits, cur: d.cur, notes: d.notes, theme: d.theme, avoid: d.avoid, settings: d.settings,
       sel: null, drag: null, lastDrag: null, snap: null, turn: null, settle: null, toast: null, toastOut: false, closing: false, instant: false,
       hOpen: false, hClosing: false, editId: null, editName: '', confirmId: null, newName: '', syncOpen: false, syncUrl: store.meta.url, syncToken: store.meta.token, bkOpen: false, bkText: '', bkMsg: '', bkPending: null }
-    store.onRemote((doc: Doc) => this.setState({ habits: doc.habits, notes: doc.notes, cur: doc.cur }))
+    store.onRemote((doc: Doc) => this.setState({ habits: doc.habits, notes: doc.notes, cur: doc.cur, avoid: doc.avoid, settings: doc.settings }))
     store.onStatus(() => this.forceUpdate())
   }
   componentDidMount() {
@@ -89,7 +90,8 @@ export default class App extends React.Component<Props, State> {
   }
 
   applyTheme() { const dark = this.state.theme === 'dark'; document.documentElement.dataset.theme = dark ? 'dark' : 'light'; const m = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement | null; if (m) m.content = dark ? '#030303' : '#B7D8F5'; if (this.barsDark !== dark) { this.barsDark = dark; setSystemBars(dark) } }
-  persist() { const s = this.state; store.commit({ habits: s.habits, cur: s.cur, notes: s.notes, theme: s.theme }) }
+  doc(): Doc { const s = this.state; return { habits: s.habits, cur: s.cur, notes: s.notes, theme: s.theme, avoid: s.avoid, settings: s.settings } }
+  persist() { store.commit(this.doc()) }
   save(patch: Partial<State>, after?: () => void) {
     this.setState(patch as any, () => { this.persist(); if (after) after() })
   }
@@ -304,7 +306,7 @@ export default class App extends React.Component<Props, State> {
 
   // ---- backup ----
   copyBackup = async () => {
-    const s = this.state, text = makeBackup({ habits: s.habits, cur: s.cur, notes: s.notes, theme: s.theme }), c = countOf(s)
+    const s = this.state, text = makeBackup(this.doc()), c = countOf({ ...s, avoid: s.avoid })
     let done = false
     try { await navigator.clipboard.writeText(text); done = true } catch { /* fall back below */ }
     if (!done) {
@@ -316,9 +318,9 @@ export default class App extends React.Component<Props, State> {
   checkBackup = () => { const p = parseBackup(this.state.bkText); this.setState({ bkPending: p, bkMsg: p ? '' : 'That isn’t a Streak Calendar backup. Paste the whole text, starting with {' }) }
   applyBackup = () => {
     const s = this.state, p = s.bkPending; if (!p) return
-    const d = mergeBackup({ habits: s.habits, cur: s.cur, notes: s.notes, theme: s.theme }, p), c = countOf(p)
+    const d = mergeBackup(this.doc(), p), c = countOf(p)
     this.switching = true
-    this.save({ habits: d.habits, notes: d.notes, bkPending: null, bkOpen: false, bkText: '', bkMsg: `Restored ${c.habits} habit${c.habits === 1 ? '' : 's'} and ${c.marks} marks.` }, () => { this.switching = false })
+    this.save({ habits: d.habits, notes: d.notes, avoid: d.avoid, bkPending: null, bkOpen: false, bkText: '', bkMsg: `Restored ${c.habits} habit${c.habits === 1 ? '' : 's'} and ${c.marks} marks.` }, () => { this.switching = false })
     this.buzz(12)
   }
 
@@ -328,6 +330,7 @@ export default class App extends React.Component<Props, State> {
     if (st === 'off') return 'Saved on this device · tap to sync'
     if (st === 'syncing') return 'Syncing…'
     if (st === 'auth') return 'Sync: wrong token'
+    if (st === 'server') return 'Sync: the server needs an update'
     if (st === 'offline') return 'Offline · will sync when back'
     if (st === 'error') return 'Sync failed · will retry'
     return store.lastSync ? 'Synced · ' + new Date(store.lastSync).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Sync on'

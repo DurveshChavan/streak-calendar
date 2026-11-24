@@ -1,7 +1,7 @@
 // Pushes what the Android home-screen widget needs to native storage. No-op on the web.
 import { registerPlugin, Capacitor } from '@capacitor/core'
-import type { Doc } from './store'
-import { widgetPayload } from './widgetPayload'
+import type { Doc } from './store.ts'
+import { widgetPayload } from './widgetPayload.ts'
 
 interface WidgetBridge { update(o: { json: string }): Promise<void>; setTheme(o: { dark: boolean }): Promise<void> }
 const Bridge = Capacitor.isNativePlatform() ? registerPlugin<WidgetBridge>('WidgetBridge') : null
