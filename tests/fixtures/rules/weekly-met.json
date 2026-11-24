@@ -1,0 +1,6 @@
+{
+  "name": "build weekly: the current week counts once its goal is met",
+  "today": "2026-11-25", "weekStart": 1,
+  "habit": { "id": "w1", "name": "Speak", "kind": "weekly", "goal": 1, "marks": { "2026-11-17": "t", "2026-11-24": "t" } },
+  "expect": { "total": 2, "thisWeek": { "first": "2026-11-23", "amount": 1, "of": 1, "met": true }, "streak": { "cur": 2, "best": 2, "unit": "week" } }
+}

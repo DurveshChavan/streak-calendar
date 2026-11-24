@@ -1,0 +1,6 @@
+{
+  "name": "build daily: only x breaks, blank and future ignored",
+  "today": "2026-11-25", "weekStart": 0,
+  "habit": { "id": "h1", "name": "Run", "marks": { "2026-11-18": "t", "2026-11-19": "x", "2026-11-20": "t", "2026-11-22": "t", "2026-11-24": "t", "2026-11-25": "t", "2026-11-27": "t" } },
+  "expect": { "total": 5, "thisWeek": { "first": "2026-11-22", "amount": 3, "of": 7, "met": null }, "streak": { "cur": 4, "best": 4, "unit": "day" } }
+}

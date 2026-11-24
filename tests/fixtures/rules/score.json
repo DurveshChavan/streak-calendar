@@ -1,0 +1,13 @@
+{
+  "name": "daily score counts active build daily habits only",
+  "day": "2026-11-25",
+  "habits": [
+    { "id": "a", "name": "A", "marks": { "2026-11-25": "t" } },
+    { "id": "b", "name": "B", "marks": { "2026-11-25": "x" } },
+    { "id": "c", "name": "C", "marks": {} },
+    { "id": "d", "name": "D", "later": true, "marks": { "2026-11-25": "t" } },
+    { "id": "w", "name": "W", "kind": "weekly", "goal": 2, "marks": { "2026-11-25": "t" } },
+    { "id": "r", "name": "R", "kind": "reduce", "marks": {}, "urges": { "2026-11-25": 1 } }
+  ],
+  "expect": { "done": 1, "of": 3 }
+}
