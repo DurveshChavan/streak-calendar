@@ -1,15 +1,13 @@
 import { MONTHS, pad, parse } from './calendar.ts'
 
-export type Mark = 't' | 'x'
-export type Marks = Record<string, Mark>
+export type { Mark, Marks } from './types.ts'
+import type { Mark, Marks } from './types.ts'
 export interface Streaks { cur: number; best: number; prev: number }
 
-// Milestones: 7, 21, 30, 50, 100, 150, 200, 250, 300, 365, then every 100
 const MS = [7, 21, 30, 50, 100, 150, 200, 250, 300, 365]
 export const isMs = (n: number) => MS.includes(n) || (n > 365 && n % 100 === 0)
 export const nextMs = (n: number) => MS.find(m => m > n) || (Math.floor(n / 100) + 1) * 100
 
-/** Only a missed day (✕) breaks a run; unmarked days neither extend nor break it. Days after `today` are ignored. */
 export function streaks(marks: Marks, today: string): Streaks {
   const keys = Object.keys(marks).filter(k => k <= today).sort()
   let run = 0, best = 0, prev = 0

@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "server": "node server/index.mjs",
-    "test": "node --experimental-strip-types --test server/sync.test.mjs src/lib/streaks.test.ts src/lib/backup.test.ts",
+    "test": "node --experimental-strip-types --test server/sync.test.mjs src/domain/streaks.test.ts src/domain/records.test.ts src/lib/backup.test.ts",
     "cap:sync": "npm run build && cap sync android",
     "android:apk": "npm run cap:sync && cd android && ./gradlew assembleProdDebug",
     "android:beta": "npm run cap:sync && cd android && ./gradlew assembleBetaDebug",
