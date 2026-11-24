@@ -16,7 +16,7 @@ import Detail from './ui/Detail'
 import Review from './ui/Review'
 import TwoMiss from './ui/TwoMiss'
 import { timerPort } from './platform/timer'
-import { settle, timerKind, timerMinutes, type Timer } from './domain/timer'
+import { settleAll, timerKind, timerMinutes, type Timer } from './domain/timer'
 import { restartPrompts, twoMissAfter, type Prompt } from './domain/rules'
 import { weekReview } from './domain/review'
 import { isLastDayOfWeek, weekOf } from './domain/week'
@@ -201,7 +201,7 @@ export default class App extends React.Component<Props, State> {
   pickHabit(id: string, i: number) { const d = Math.sign(i - this.hIdx()); if (d) this.toHabit(id, d); this.closeHabits() }
   syncTimer = async () => {
     const done = await timerPort.drain()
-    if (done.length) this.apply(d => done.reduce((acc, t) => settle(acc, t, Date.now()), d))
+    if (done.length) this.apply(d => { let seen: string[] = []; try { seen = JSON.parse(localStorage.getItem('streakcal.settled') || '[]') } catch { } const r = settleAll(d, done, Date.now(), Array.isArray(seen) ? seen : []); try { localStorage.setItem('streakcal.settled', JSON.stringify(r.seen)) } catch { } return r.doc })
     const timer = await timerPort.current()
     this.setState(st => ({ timer, view: st.view === 'timer' && !timer ? null : st.view }))
   }

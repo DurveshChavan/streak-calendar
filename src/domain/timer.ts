@@ -13,6 +13,19 @@ export function timerKind(h: Habit): TimerKind | null {
 
 export const timerMinutes = (h: Habit) => h.timerMin || DEFAULT_TIMER[kindOf(h)]
 
+const SEEN_MAX = 50
+const idOf = (t: Timer) => t.habitId + '@' + t.startedAt
+
+export function settleAll(doc: Doc, timers: Timer[], now: number, seen: string[]): { doc: Doc; seen: string[] } {
+  let out = doc, next = seen
+  for (const t of timers) {
+    if (now < t.endsAt || next.includes(idOf(t))) continue
+    out = settle(out, t, now)
+    next = [...next, idOf(t)].slice(-SEEN_MAX)
+  }
+  return { doc: out, seen: next }
+}
+
 export function settle(doc: Doc, t: Timer, now: number): Doc {
   const h = doc.habits.find(x => x.id === t.habitId)
   if (now < t.endsAt || !h || h.later) return doc
