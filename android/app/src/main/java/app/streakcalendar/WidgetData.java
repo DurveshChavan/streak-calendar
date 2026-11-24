@@ -217,6 +217,27 @@ public final class WidgetData {
         return total + "|" + (h.unit.isEmpty() ? "" : h.unit + " ") + "in total";
     }
 
+    public String weekLine(Habit h, String today) {
+        Week w = thisWeek(h, today);
+        if ("reduce".equals(h.kind)) return w.of > 0 ? number(w.used) + " of " + number(w.of) + " used" : number(w.amount) + " resisted";
+        String unit = "number".equals(h.kind) && !h.unit.isEmpty() ? " " + h.unit : "";
+        return (w.of > 0 ? number(w.amount) + " / " + number(w.of) : number(w.amount)) + unit;
+    }
+
+    public static int timerMinutes(Habit h) {
+        return h.timerMin > 0 ? h.timerMin : "reduce".equals(h.kind) ? 20 : 5;
+    }
+
+    public String[] actionText(Habit h, String today) {
+        String total = number(total(h, today));
+        if ("reduce".equals(h.kind)) {
+            String line = h.budget > 0 ? "urges resisted · " + weekLine(h, today) : "urges resisted";
+            return new String[]{h.name, total, line, "Delay " + timerMinutes(h) + " min"};
+        }
+        String button = "number".equals(h.kind) ? "" : "Start " + timerMinutes(h) + " min";
+        return new String[]{h.name, total, weekLine(h, today) + " this week", button};
+    }
+
     public int[] dailyScore(String day) {
         int done = 0, of = 0;
         for (Habit h : habits) {
@@ -235,7 +256,7 @@ public final class WidgetData {
             Calendar c = Calendar.getInstance();
             c.setTimeInMillis(t.startedAt);
             String day = keyOf(c);
-            if ("delay".equals(t.kind)) h.urges.put(day, h.urges.getOrDefault(day, 0.0) + 1);
+            if ("delay".equals(t.kind)) { Double u = h.urges.get(day); h.urges.put(day, (u == null ? 0 : u) + 1); }
             else h.marks.put(day, "t");
         }
     }

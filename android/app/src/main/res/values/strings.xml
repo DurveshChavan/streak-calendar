@@ -19,4 +19,6 @@
     <string name="widget_habit">Habit</string>
     <string name="widget_cancel">Cancel</string>
     <string name="widget_save">Save</string>
+    <string name="action_widget_label">Streak Calendar action</string>
+    <string name="action_widget_description">One habit: total, this week and a start-timer button</string>
 </resources>

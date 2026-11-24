@@ -65,6 +65,7 @@ public class StreakWidgetProvider extends AppWidgetProvider {
         for (Class<?> k : new Class<?>[]{StreakWidgetProvider.class, StreakWidgetFullProvider.class}) {
             for (int id : mgr.getAppWidgetIds(new ComponentName(ctx, k))) update(ctx, mgr, id);
         }
+        ActionWidgetProvider.refreshAll(ctx);
     }
 
     /** The widget's size in dp: exact sizes on Android 12+, otherwise min/max for the current orientation. */
