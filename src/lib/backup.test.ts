@@ -25,3 +25,34 @@ test('merge keeps everything already on the device', () => {
   assert.deepEqual(m.notes, { '2026-11-05': 'hi', '2026-11-01': '5k' })
   assert.equal(m.cur, 'new'); assert.equal(m.theme, 'dark')
 })
+
+const v31: any = {
+  habits: [
+    { id: 'h1', name: 'Run', marks: { '2026-11-02': 'x' }, reasons: { '2026-11-02': 'rain', bad: 'x' } },
+    { id: 'r1', name: 'Phone', kind: 'reduce', budget: 5, replacement: 'walk', marks: {}, urges: { '2026-11-03': 4, '2026-11-04': -2 }, slips: { '2026-11-03': 1 } },
+    { id: 'n1', name: 'Pages', kind: 'number', target: 70, unit: 'pages', later: true, marks: {}, values: { '2026-11-03': 12.5, '2026-11-04': 'a' } },
+    { id: 'w1', name: 'Speak', kind: 'weekly', goal: 3, marks: {}, junk: 1 },
+  ],
+  avoid: [{ id: 'a1', name: 'Sugar', replacement: 'fruit' }, { id: '', name: 'x', replacement: '' }],
+  settings: { weekStart: 1, missRules: false },
+  cur: 'h1', notes: {}, theme: 'light',
+}
+
+test('a 3.1 backup keeps kinds, day facts, avoid items and settings', () => {
+  const p = parseBackup(makeBackup(v31))!
+  assert.deepEqual(p.habits[0].reasons, { '2026-11-02': 'rain' })
+  assert.deepEqual(p.habits[1], { id: 'r1', name: 'Phone', kind: 'reduce', budget: 5, replacement: 'walk', marks: {}, urges: { '2026-11-03': 4 }, slips: { '2026-11-03': 1 } })
+  assert.deepEqual(p.habits[2], { id: 'n1', name: 'Pages', kind: 'number', target: 70, unit: 'pages', later: true, marks: {}, values: { '2026-11-03': 12.5 } })
+  assert.deepEqual(p.habits[3], { id: 'w1', name: 'Speak', kind: 'weekly', goal: 3, marks: {} })
+  assert.deepEqual(p.avoid, [{ id: 'a1', name: 'Sugar', replacement: 'fruit' }])
+  assert.deepEqual(p.settings, { weekStart: 1, missRules: false })
+  assert.equal(JSON.parse(makeBackup(v31)).version, 3)
+})
+test('merge combines day facts and adds avoid items', () => {
+  const cur: any = { habits: [{ id: 'r1', name: 'Phone', kind: 'reduce', marks: {}, urges: { '2026-11-01': 2 } }], avoid: [], settings: { weekStart: 0, missRules: true }, cur: 'r1', notes: {}, theme: 'light' }
+  const m = mergeBackup(cur, parseBackup(makeBackup(v31))!)
+  assert.deepEqual(m.habits[0].urges, { '2026-11-01': 2, '2026-11-03': 4 })
+  assert.equal(m.habits[0].budget, 5)
+  assert.deepEqual(m.avoid.map(a => a.id), ['a1'])
+  assert.deepEqual(m.settings, { weekStart: 0, missRules: true })
+})

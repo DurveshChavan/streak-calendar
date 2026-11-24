@@ -11,7 +11,7 @@ async function boot() {
   const srv = createApp({ dbFile: path.join(dir, 'db'), token: TOKEN, webRoot: null })
   await new Promise(r => srv.listen(0, r))
   const base = 'http://127.0.0.1:' + srv.address().port
-  const post = (body, token = TOKEN) => fetch(base + '/api/sync', { method: 'POST', headers: { authorization: 'Bearer ' + token, 'content-type': 'application/json' }, body: JSON.stringify(body) })
+  const post = (body, token = TOKEN, v = 3) => fetch(base + '/api/sync', { method: 'POST', headers: { authorization: 'Bearer ' + token, 'content-type': 'application/json' }, body: JSON.stringify(v ? { v, ...body } : body) })
   return { srv, base, post }
 }
 
@@ -23,7 +23,6 @@ test('two devices converge, newest timestamp wins, deletes propagate', async () 
   const { srv, post } = await boot()
   const a = await (await post({ since: 0, changes: [{ key: 'mark:h1:2026-11-06', value: 't', ts: 100 }, { key: 'habit:h1', value: { name: 'Run', order: 0 }, ts: 100 }] })).json()
   assert.equal(a.changes.length, 2)
-  // device B pushes an older edit (ignored) and a newer one
   const b = await (await post({ since: 0, changes: [{ key: 'mark:h1:2026-11-06', value: 'x', ts: 50 }, { key: 'note:2026-11-06', value: 'hi', ts: 120 }] })).json()
   assert.equal(b.changes.find(c => c.key === 'mark:h1:2026-11-06').value, 't')
   assert.equal(b.changes.find(c => c.key === 'note:2026-11-06').value, 'hi')
@@ -36,4 +35,20 @@ test('ignores invalid keys', async () => {
   const { srv, post } = await boot()
   const r = await (await post({ since: 0, changes: [{ key: '../etc', value: 1, ts: 1 }, { key: 'evil', value: 1, ts: 1 }] })).json()
   assert.equal(r.changes.length, 0); srv.close()
+})
+test('refuses a client that sends no protocol version', async () => {
+  const { srv, post } = await boot()
+  const r = await post({ since: 0, changes: [{ key: 'mark:h1:2026-11-06', value: 't', ts: 1 }] }, TOKEN, 0)
+  assert.equal(r.status, 426)
+  assert.equal((await (await post({ since: 0 })).json()).changes.length, 0); srv.close()
+})
+test('reports protocol 3 on health', async () => {
+  const { srv, base } = await boot()
+  assert.deepEqual(await (await fetch(base + '/api/health')).json(), { ok: true, protocol: 3 }); srv.close()
+})
+test('accepts the 3.1 record keys', async () => {
+  const { srv, post } = await boot()
+  const keys = ['reason:h1:2026-11-06', 'urge:h1:2026-11-06', 'slip:h1:2026-11-06', 'val:h1:2026-11-06', 'avoid:a1', 'set:weekStart']
+  const r = await (await post({ since: 0, changes: keys.map((key, i) => ({ key, value: i, ts: 1 })) })).json()
+  assert.deepEqual(r.changes.map(c => c.key).sort(), [...keys].sort()); srv.close()
 })
