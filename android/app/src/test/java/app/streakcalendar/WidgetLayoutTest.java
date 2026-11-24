@@ -68,8 +68,8 @@ public class WidgetLayoutTest {
 
     @Test
     public void fullPageAddsCardsOnlyWhenTall() {
-        assertTrue(hasText(layout(370, 684, .7f), "THIS MONTH"));
-        assertFalse(hasText(layout(370, 456, .7f), "THIS MONTH"));
+        assertTrue(hasText(layout(370, 684, .7f), "PROGRESS"));
+        assertFalse(hasText(layout(370, 456, .7f), "PROGRESS"));
     }
 
     @Test

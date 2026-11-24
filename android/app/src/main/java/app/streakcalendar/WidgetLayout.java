@@ -72,7 +72,7 @@ public final class WidgetLayout {
         final float t = st.transparency;
         // palette (the app's design tokens)
         final int ink = dark ? 0xF4F6FA : 0x14161A, red = dark ? 0xFF6B5E : 0xB00000, yellow = dark ? 0xF9B318 : 0xFFD700;
-        final int tick = dark ? 0x13994C : 0x0E8A43, cross = dark ? 0xE5322A : 0xE10600;
+        final int tick = 0x0E8A43, cross = dark ? 0x5A5E66 : 0x6B7079;
         // the transparency dial: panels fade out; the default (70%) matches the original look
         final float glassK = Math.min(1f, (1f - t) / 0.3f);
         final int panel = argb(dark ? 0x000000 : 0xFFFFFF, 1f - t);
@@ -94,21 +94,25 @@ public final class WidgetLayout {
         final float hh = dp(HEADER_DP), gap = dp(6);
         glass(0, 0, w, hh, dp(20), panel, hilite, border);
 
-        final int streak = WidgetData.currentStreak(hab.marks, today);
+        final String[] bd = data.badge(hab, today).split("\\|", 2);
+        final boolean daily = "daily".equals(hab.kind);
+        final int streak = daily ? WidgetData.currentStreak(hab.marks, today) : 0;
         final float bh = dp(50), bw = dp(n > 1 ? 142 : 132);
         final float br = w - dp(7), bl = br - bw, bt = (hh - bh) / 2f, bb = bt + bh, bc = bt + bh / 2f;
         rect(bl, bt, br, bb, dp(15), argb(yellow, 1));
         final float ns = dp(28);
-        final String num = String.valueOf(streak);
+        final String num = bd[0];
         final float slot = Math.max(2, num.length()) * .58f * ns;
         text(num, bl + dp(12) + slot, bc + ns * .30f, ns, "bold", RIGHT, argb(0x14161A, 1), 0, 0, false, false);
         final float lx = bl + dp(12) + slot + dp(9), lw = br - dp(n > 1 ? 22 : 12) - lx;
-        text(hab.name.toUpperCase(), lx, bc - dp(1), dp(11), "medium", LEFT, argb(0x14161A, 1), .06f, lw, false, false);
-        text("STREAK", lx, bc + dp(12), dp(11), "medium", LEFT, argb(0x14161A, 1), .06f, lw, false, false);
-        final float pl = bl + dp(12), pr = br - dp(n > 1 ? 26 : 14), py = bb - dp(8);
-        rect(pl, py, pr, py + dp(3), dp(1.5f), argb(0x14161A, .18f));
-        final float frac = Math.min(1f, streak / (float) WidgetData.nextMilestone(streak));
-        if (frac > 0) rect(pl, py, pl + (pr - pl) * frac, py + dp(3), dp(1.5f), argb(0x14161A, 1));
+        text(hab.name, lx, bc - dp(1), dp(12), "medium", LEFT, argb(0x14161A, 1), 0, lw, false, false);
+        text(bd[1], lx, bc + dp(12), dp(12), "regular", LEFT, argb(0x14161A, 1), 0, lw, false, false);
+        if (daily) {
+            final float pl = bl + dp(12), pr = br - dp(n > 1 ? 26 : 14), py = bb - dp(8);
+            rect(pl, py, pr, py + dp(3), dp(1.5f), argb(0x14161A, .18f));
+            final float frac = Math.min(1f, streak / (float) WidgetData.nextMilestone(streak));
+            if (frac > 0) rect(pl, py, pl + (pr - pl) * frac, py + dp(3), dp(1.5f), argb(0x14161A, 1));
+        }
         if (n > 1) { // which habit this is, like the app's badge (tap the badge to switch)
             final int W = 5, a0 = n <= W ? 0 : Math.min(Math.max(0, hi - 2), n - W), a1 = Math.min(n, a0 + W);
             float total = 0;
@@ -148,17 +152,19 @@ public final class WidgetLayout {
             final float ox = pad + labelW + cg + (availW - gridW) / 2f, oy = top + pad + (availH - gridH) / 2f;
             final String[] wd = {"S", "M", "T", "W", "T", "F", "S"};
             final float ls = Math.min(dp(14), c * .42f);
+            final int ws = data.weekStart;
             for (int r = 0; r < 7; r++) {
-                text(wd[r], ox - cg - labelW / 2f, oy + r * (c + cg) + c / 2f + ls * .35f, ls, r == 0 ? "bold" : "medium", CENTER,
-                        argb(r == 0 ? red : ink, 1), 0, 0, true, false);
+                final boolean sun = (r + ws) % 7 == 0;
+                text(wd[(r + ws) % 7], ox - cg - labelW / 2f, oy + r * (c + cg) + c / 2f + ls * .35f, ls, sun ? "bold" : "medium", CENTER,
+                        argb(sun ? red : ink, 1), 0, 0, true, false);
             }
-            final String[][][] grid = WidgetData.monthGrid(year, month);
+            final String[][][] grid = WidgetData.monthGrid(year, month, ws);
             final float radius = Math.min(dp(12), c * .28f);
             for (int col = 0; col < 6; col++) {
                 for (int r = 0; r < 7; r++) {
                     final String[] g = grid[col][r];
-                    final boolean inMonth = "1".equals(g[2]), isToday = g[0].equals(today), redDay = r == 0 || data.holidays.containsKey(g[0]);
-                    final String mark = hab.marks.get(g[0]);
+                    final boolean inMonth = "1".equals(g[2]), isToday = g[0].equals(today), redDay = (r + ws) % 7 == 0 || data.holidays.containsKey(g[0]);
+                    final String mark = "daily".equals(hab.kind) || "weekly".equals(hab.kind) ? hab.marks.get(g[0]) : null;
                     final float a = inMonth ? 1f : .38f; // out-of-month days fade, as in the app
                     final float l = ox + col * (c + cg), tp = oy + r * (c + cg);
                     final int fill = "t".equals(mark) ? argb(tick, a) : "x".equals(mark) ? argb(cross, a) : isToday ? argb(yellow, a)
@@ -187,9 +193,10 @@ public final class WidgetLayout {
         final boolean solidCard = glassK >= .5f;
         final int white = solidCard ? argb(0xFFFFFF, 1) : argb(ink, 1);
         final float px = dp(14);
-        text("THIS MONTH", px, ct + dp(19.5f), dp(11), "medium", LEFT, white, .08f, cw - 2 * px, !solidCard, solidCard);
-        final int[] mc = WidgetData.monthCounts(hab.marks, year, month);
-        final String[][] rows = {{"Done", String.valueOf(mc[0])}, {"Missed", String.valueOf(mc[1])}, {"Best streak", String.valueOf(WidgetData.bestStreak(hab.marks, today))}};
+        text("PROGRESS", px, ct + dp(19.5f), dp(11), "medium", LEFT, white, .08f, cw - 2 * px, !solidCard, solidCard);
+        final int[] sc = data.dailyScore(today);
+        final WidgetData.Streak sk = data.streak(hab, today);
+        final String[][] rows = {{"Today", sc == null ? "–" : sc[0] + " / " + sc[1]}, {"Total", bd[0]}, {"Best streak", sk == null ? "–" : String.valueOf(sk.best)}};
         float y = ct + dp(46);
         for (int i = 0; i < 3; i++) {
             if (i == 2) {
