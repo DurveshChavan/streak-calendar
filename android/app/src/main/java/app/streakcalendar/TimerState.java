@@ -86,7 +86,8 @@ public final class TimerState {
         return running;
     }
 
-    public void cancel() {
+    public void cancel(long now) {
+        finishDue(now);
         running = null;
     }
 

@@ -55,9 +55,12 @@ final class TimerStore {
 
     static synchronized void cancel(Context ctx) {
         TimerState s = load(ctx);
-        s.cancel();
+        TimerState.Timer was = s.running;
+        long now = System.currentTimeMillis();
+        s.cancel(now);
         save(ctx, s);
-        TimerNotifier.clear(ctx);
+        if (was != null && now >= was.endsAt) TimerNotifier.showDone(ctx, was, habitName(ctx, was.habitId));
+        else TimerNotifier.clear(ctx);
         AlarmManager am = (AlarmManager) ctx.getSystemService(Context.ALARM_SERVICE);
         if (am != null) am.cancel(endIntent(ctx));
         StreakWidgetProvider.refreshAll(ctx);

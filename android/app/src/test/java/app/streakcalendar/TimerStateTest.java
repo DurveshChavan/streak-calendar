@@ -28,9 +28,18 @@ public class TimerStateTest {
     public void cancelCountsNothing() {
         TimerState s = TimerState.parse(null);
         s.start("h1", "start", 5, 0);
-        s.cancel();
+        s.cancel(4 * 60000);
         assertEquals(0, s.drain(10 * 60000).length());
         assertNull(s.current(10 * 60000));
+    }
+
+    @Test
+    public void stopAfterTheEndStillCounts() {
+        TimerState s = TimerState.parse(null);
+        s.start("h1", "start", 5, 0);
+        s.cancel(6 * 60000);
+        assertEquals(1, s.drain(6 * 60000).length());
+        assertNull(s.current(6 * 60000));
     }
 
     @Test
