@@ -24,7 +24,7 @@ class Store {
   private timer: any; private poll: any; private busy = false; private again = false; private checked = ''
 
   constructor() {
-    try { Object.assign(this.meta, JSON.parse(localStorage.getItem(SYNC) || '{}')) } catch { /* ignore */ }
+    try { Object.assign(this.meta, JSON.parse(localStorage.getItem(SYNC) || '{}')) } catch { }
     if (!Object.keys(this.meta.flat).length) {
       const d = this.doc, pristine = d.habits.length === 1 && d.habits[0].id === 'h1' && d.habits[0].name === 'Habit 1' && !Object.keys(d.habits[0].marks).length && !Object.keys(d.notes).length
       this.commit(d, true, pristine ? 0 : undefined)
@@ -36,11 +36,11 @@ class Store {
   onRemote(cb: (d: Doc) => void) { this.remoteCb = cb }
   onStatus(cb: () => void) { this.statusCb = cb }
   private setState(s: SyncState) { this.state = s; this.statusCb?.() }
-  private saveMeta() { try { localStorage.setItem(SYNC, JSON.stringify(this.meta)) } catch { /* ignore */ } }
+  private saveMeta() { try { localStorage.setItem(SYNC, JSON.stringify(this.meta)) } catch { } }
 
   commit(doc: Doc, silent = false, stamp?: number) {
     this.doc = doc
-    try { localStorage.setItem(STORE2, JSON.stringify(doc)) } catch { /* ignore */ }
+    try { localStorage.setItem(STORE2, JSON.stringify(doc)) } catch { }
     const next = flatten(doc), prev = this.meta.flat, now = stamp ?? Date.now(), dirty = new Set(this.meta.dirty)
     for (const k of Object.keys(next)) if (JSON.stringify(next[k]) !== JSON.stringify(prev[k])) { this.meta.ts[k] = now; dirty.add(k) }
     for (const k of Object.keys(prev)) if (!(k in next) && prev[k] != null) { this.meta.ts[k] = now; dirty.add(k); next[k] = null }
@@ -96,7 +96,7 @@ class Store {
         this.meta.seq = res.seq; more = !!res.more; this.saveMeta()
         if (changed) {
           this.doc = rebuild(this.meta.flat, this.doc)
-          try { localStorage.setItem(STORE2, JSON.stringify(this.doc)) } catch { /* ignore */ }
+          try { localStorage.setItem(STORE2, JSON.stringify(this.doc)) } catch { }
           pushWidget(this.doc); this.remoteCb?.(this.doc)
         }
       }

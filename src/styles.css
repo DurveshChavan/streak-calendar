@@ -1,6 +1,6 @@
-:root{--bg:#B7D8F5;--c30:#E10600;--c10:#FFD700;--ink:#14161A;--glass:rgba(183,216,245,.6);--card30:rgba(225,6,0,.88);--red:#B00000;--line:rgba(20,22,26,.16);--cell:rgba(255,255,255,.42);--tick:#0E8A43;--cross:#6B7079;--contour:rgba(20,22,26,.12)}
-[data-theme="dark"]{--bg:#030303;--c30:#5245F8;--c10:#F9B318;--ink:#F4F6FA;--glass:rgba(3,3,3,.58);--card30:rgba(82,69,248,.9);--red:#FF6B5E;--line:rgba(244,246,250,.16);--cell:rgba(255,255,255,.07);--tick:#0E8A43;--cross:#5A5E66;--contour:rgba(244,246,250,.1)}
-html,body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Helvetica,Roboto,sans-serif;-webkit-tap-highlight-color:transparent;transition:background .3s,color .3s;height:100%;overflow:hidden;overscroll-behavior:none}
+:root{color-scheme:light;--bg:#B7D8F5;--c30:#E10600;--c10:#FFD700;--ink:#14161A;--surface:#EBF4FC;--glass:color-mix(in srgb,#EBF4FC 46%,transparent);--card30:rgba(225,6,0,.86);--red:#B00000;--line:rgba(20,22,26,.12);--cell:color-mix(in srgb,#FFFFFF 46%,transparent);--tick:#0E8A43;--cross:#6B7079;--rim:rgba(255,255,255,.70);--rim-hi:rgba(255,255,255,.95);--lift:0 1px 1px rgba(30,40,70,.04),0 10px 30px -12px rgba(30,40,70,.18);--wash30:72%;--wash10:40%;--glow-mid:.72;--glow-tail:.3;--glow-echo:.8}
+[data-theme="dark"]{color-scheme:dark;--bg:#030303;--c30:#5245F8;--c10:#F9B318;--ink:#F4F6FA;--surface:#151515;--glass:color-mix(in srgb,#151515 50%,transparent);--card30:rgba(82,69,248,.86);--red:#FF6B5E;--line:rgba(244,246,250,.12);--cell:rgba(255,255,255,.07);--tick:#0E8A43;--cross:#5A5E66;--rim:rgba(255,255,255,.07);--rim-hi:rgba(255,255,255,.16);--lift:0 1px 1px rgba(0,0,0,.30),0 14px 34px -14px rgba(0,0,0,.60);--wash30:74%;--wash10:18%;--glow-mid:.5;--glow-tail:.12;--glow-echo:.55}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:Roboto,-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;letter-spacing:-.006em;-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent;transition:background .3s,color .3s;height:100%;overflow:hidden;overscroll-behavior:none}
 button{font:inherit;color:inherit}
 button:focus-visible,textarea:focus-visible,input:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 a{color:var(--ink)}a:hover{color:var(--red)}
@@ -13,7 +13,7 @@ a{color:var(--ink)}a:hover{color:var(--red)}
 @keyframes rise{from{transform:translateY(10px);opacity:0}to{transform:none;opacity:1}}
 .rise{animation:rise .42s cubic-bezier(.2,.8,.2,1) backwards}
 .glassfade{transition:background-color .35s ease,border-color .35s ease,color .35s ease,scale .15s ease}
-.disc{transition:transform 1.1s cubic-bezier(.2,.8,.2,1),background-color .35s ease,border-color .35s ease}
+.disc{transition:transform 1.1s cubic-bezier(.2,.8,.2,1)}
 button{transition:scale .15s ease}
 button:active{scale:.96}
 .tap{transition:opacity .15s!important}
@@ -21,10 +21,8 @@ button:active{scale:.96}
 .app{--vh:100vh;height:100vh;touch-action:pinch-zoom;--reserve:314px;--c:max(28px,min(calc((var(--cw,min(100vw,560px)) - 80px)/6),calc((var(--vh) - var(--reserve) - var(--wn) - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))/7)));position:relative;z-index:1;max-width:560px;margin:0 auto;padding:max(8px,env(safe-area-inset-top)) 8px max(8px,env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:8px;box-sizing:border-box}
 .main{display:flex;flex-direction:column;gap:8px;flex:none;min-width:0}
 .cards{flex:1 1 0;min-height:0;container-type:size;container-name:cards;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
-/* split screen / pop-up view: short windows drop the cards (and, shorter still, the week numbers) so the month always fits */
 @media (max-height:560px){.app{--reserve:196px;overflow-y:auto;touch-action:pan-y pinch-zoom}.cards{display:none}}
 @media (max-height:470px){.app{--wn:0px!important}.wkn{display:none}}
-/* wide, short windows (landscape, side-by-side split): calendar on the left, cards stacked on the right */
 @media (max-height:380px) and (max-aspect-ratio:5/4){.navrow{display:none!important}.app{--reserve:132px}}
 @media (min-width:600px) and (min-aspect-ratio:5/4){
   .app{display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);grid-template-areas:"cal head" "cal cards";max-width:980px;--reserve:116px;--cw:min(58vw,560px)}
@@ -35,7 +33,8 @@ button:active{scale:.96}
 .hol3,.hol4{display:none!important}
 @container cards (min-height:158px){.hol3{display:flex!important}}
 @container cards (min-height:200px){.hol4{display:flex!important}}
-/* theme toggle: everything swaps in one frame; the View Transition cross-fades the two snapshots */
 .theme-swap,.theme-swap *,.theme-swap *::before,.theme-swap *::after{transition:none!important}
 ::view-transition-old(root),::view-transition-new(root){animation-duration:.28s;animation-timing-function:ease}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
