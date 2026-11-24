@@ -72,7 +72,7 @@ public final class WidgetLayout {
         final float t = st.transparency;
         // palette (the app's design tokens)
         final int ink = dark ? 0xF4F6FA : 0x14161A, red = dark ? 0xFF6B5E : 0xB00000, yellow = dark ? 0xF9B318 : 0xFFD700;
-        final int tick = 0x0E8A43, cross = dark ? 0x5A5E66 : 0x6B7079;
+        final int tick = 0x0D8640, cross = dark ? 0x5A5E66 : 0x6B7079;
         // the transparency dial: panels fade out; the default (70%) matches the original look
         final float glassK = Math.min(1f, (1f - t) / 0.3f);
         final int panel = argb(dark ? 0x000000 : 0xFFFFFF, 1f - t);
