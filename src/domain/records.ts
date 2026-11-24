@@ -7,6 +7,8 @@ const CONFIG = ['kind', 'goal', 'budget', 'target', 'unit', 'timerMin', 'replace
 const MAPS = [['reasons', 'reason'], ['urges', 'urge'], ['slips', 'slip'], ['values', 'val']] as const
 const SETTINGS = Object.keys(DEFAULT_SETTINGS) as (keyof Settings)[]
 
+const pickCur = (hs: Habit[], cur: string) => (hs.some(h => h.id === cur && !h.later) ? cur : (hs.find(h => !h.later) || hs[0]).id)
+
 export function normalize(v2: any, v1: any): Doc {
   let s = v2
   if (!s || !Array.isArray(s.habits) || !s.habits.length) {
@@ -17,13 +19,13 @@ export function normalize(v2: any, v1: any): Doc {
     habits: s.habits,
     avoid: Array.isArray(s.avoid) ? s.avoid : [],
     settings: { ...DEFAULT_SETTINGS, ...(s.settings || {}) },
-    cur: s.habits.some((h: Habit) => h.id === s.cur) ? s.cur : s.habits[0].id,
+    cur: pickCur(s.habits, s.cur),
     notes: s.notes || {},
     theme: s.theme || 'light',
   }
 }
 
-const kept = (v: unknown) => v !== undefined && v !== null && v !== '' && v !== 0
+const kept = (field: string, v: unknown) => v !== undefined && v !== null && v !== '' && (v !== 0 || field === 'values')
 
 export function flatten(d: Doc): Flat {
   const f: Flat = {}
@@ -32,7 +34,7 @@ export function flatten(d: Doc): Flat {
     for (const k of CONFIG) if (h[k] !== undefined && h[k] !== false) cfg[k] = h[k]
     f['habit:' + h.id] = cfg
     for (const [day, v] of Object.entries(h.marks)) f['mark:' + h.id + ':' + day] = v
-    for (const [field, prefix] of MAPS) for (const [day, v] of Object.entries(h[field] || {})) if (kept(v)) f[prefix + ':' + h.id + ':' + day] = v
+    for (const [field, prefix] of MAPS) for (const [day, v] of Object.entries(h[field] || {})) if (kept(field, v)) f[prefix + ':' + h.id + ':' + day] = v
   })
   d.avoid.forEach((a, i) => { f['avoid:' + a.id] = { name: a.name, replacement: a.replacement, order: i } })
   for (const k of SETTINGS) f['set:' + k] = d.settings[k]
@@ -72,6 +74,6 @@ export function rebuild(flat: Flat, prev: Doc): Doc {
     habits, notes, settings,
     avoid: av.map(({ order, ...a }) => a),
     theme: prev.theme,
-    cur: habits.some(h => h.id === prev.cur) ? prev.cur : habits[0].id,
+    cur: pickCur(habits, prev.cur),
   }
 }

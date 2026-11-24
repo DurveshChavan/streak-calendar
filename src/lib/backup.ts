@@ -1,4 +1,5 @@
 import type { AvoidItem, Doc, Habit, Mark, Settings } from '../domain/types.ts'
+import { upsertHabit } from '../domain/actions.ts'
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/
 const KINDS = ['daily', 'weekly', 'reduce', 'number']
@@ -71,7 +72,7 @@ export function mergeBackup(cur: Doc, b: Parsed): Doc {
     if (!o) return h
     const m: any = { ...h, ...o }
     for (const k of MAPS) if (h[k] || o[k]) m[k] = { ...h[k], ...o[k] }
-    return m as Habit
+    return upsertHabit({ ...cur, habits: [h] }, m).habits[0]
   })
   for (const o of b.habits) if (!cur.habits.some(h => h.id === o.id)) habits.push(o)
   const avoid = [...(cur.avoid || [])]

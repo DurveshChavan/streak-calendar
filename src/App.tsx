@@ -146,7 +146,7 @@ export default class App extends React.Component<Props, State> {
     if (e.button && e.button !== 0) return
     const t = e.target as Element, cell = t.closest('[data-key]') as HTMLElement | null
     if (!cell && t.closest('button')) return
-    this.g = { k: cell ? cell.dataset.key : null, x: e.clientX, y: e.clientY, id: e.pointerId, el: cell, box: e.currentTarget, mode: null, mx: 0,
+    this.g = { k: cell && isBuild(this.habit()) ? cell.dataset.key : null, x: e.clientX, y: e.clientY, id: e.pointerId, el: cell, box: e.currentTarget, mode: null, mx: 0,
       T: Math.max(88, (cell ? cell.getBoundingClientRect().width : 44) * 2) }
   }
   gMove = (e: React.PointerEvent<HTMLElement>) => {
@@ -208,11 +208,14 @@ export default class App extends React.Component<Props, State> {
   }
   startTimer = async (h: Habit) => {
     const kind = timerKind(h); if (!kind) return
-    try { await timerPort.start({ habitId: h.id, kind, minutes: timerMinutes(h) }) }
-    catch {
-      if (!window.confirm('A timer is already running. Cancel it and start this one?')) return
-      await timerPort.cancel(); await timerPort.start({ habitId: h.id, kind, minutes: timerMinutes(h) })
-    }
+    const go = () => timerPort.start({ habitId: h.id, kind, minutes: timerMinutes(h) })
+    try {
+      try { await go() }
+      catch (e: any) {
+        if (e?.message !== 'busy' || !window.confirm('A timer is already running. Cancel it and start this one?')) { if (e?.message !== 'busy') throw e; return }
+        await timerPort.cancel(); await go()
+      }
+    } catch { window.alert('The timer could not start. Please try again.'); return }
     const ok = timerPort.notifications ? await timerPort.notifications().catch(() => false) : true
     await this.syncTimer(); this.setState({ view: 'timer', sel: null, timerHint: ok ? '' : 'Notifications are off, so the timer shows only in the app. It still counts when you come back. Turn on notifications in Android settings to see it on the lock screen.' }); this.buzz(12)
   }
@@ -665,6 +668,7 @@ export default class App extends React.Component<Props, State> {
                 <div key={h.id} style={{ display: 'flex', alignItems: 'center', gap: 6, minHeight: 50, padding: '4px 4px 4px 12px', boxSizing: 'border-box', borderRadius: 14, border: '1px solid var(--line)' }}>
                   <span style={{ flex: 1, minWidth: 0, font: `400 16px/1.2 ${FONT}`, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', opacity: .7 }}>{h.name}</span>
                   <button className="glassfade" onClick={() => this.setLater(h.id, false)} style={{ ...btnG, height: 40, padding: '0 12px', borderRadius: 12 }}>Resume</button>
+                  <button className="glassfade" aria-label={'Delete ' + h.name} onClick={() => { if (window.confirm(`Delete ${h.name} and all its data?`)) this.delHabit(h.id) }} style={rowBtn}>{ico('M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3')}</button>
                 </div>
               ))}
             </div>}

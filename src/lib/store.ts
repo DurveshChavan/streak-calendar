@@ -71,7 +71,8 @@ class Store {
     this.busy = true; this.setState('syncing')
     try {
       if (this.checked !== this.meta.url) {
-        const h = await fetch(this.meta.url + '/api/health').then(r => r.json())
+        const hc = new AbortController(), ht = setTimeout(() => hc.abort(), 15000)
+        const h = await fetch(this.meta.url + '/api/health', { signal: hc.signal }).then(r => r.json()).finally(() => clearTimeout(ht))
         if (!(h.protocol >= PROTOCOL)) { this.setState('server'); return }
         this.checked = this.meta.url
       }

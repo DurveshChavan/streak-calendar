@@ -56,3 +56,10 @@ test('merge combines day facts and adds avoid items', () => {
   assert.deepEqual(m.avoid.map(a => a.id), ['a1'])
   assert.deepEqual(m.settings, { weekStart: 0, missRules: true })
 })
+test('restore keeps the device kind unless the switch is daily or weekly (E1)', () => {
+  const cur: any = { habits: [{ id: 'h1', name: 'Run', marks: { '2026-11-01': 't' } }], avoid: [], settings: { weekStart: 0, missRules: true }, cur: 'h1', notes: {}, theme: 'light' }
+  const toReduce = parseBackup(JSON.stringify({ habits: [{ id: 'h1', name: 'Run', kind: 'reduce', marks: {} }] }))!
+  assert.equal(mergeBackup(cur, toReduce).habits[0].kind, undefined)
+  const toWeekly = parseBackup(JSON.stringify({ habits: [{ id: 'h1', name: 'Run', kind: 'weekly', goal: 3, marks: {} }] }))!
+  assert.equal(mergeBackup(cur, toWeekly).habits[0].kind, 'weekly')
+})
