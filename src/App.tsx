@@ -6,6 +6,8 @@ import { MONTHS, WD, pad, keyOf, parse, holiday, holidaysFor, isoWeek, dayOfYear
 import { streaks as calcStreaks, peaks as calcPeaks, nextMs, type Marks, type Mark } from './domain/streaks'
 import { store, type Doc, type Habit } from './lib/store'
 import type { AvoidItem, Settings, WeekStart } from './domain/types'
+import { badge } from './domain/badge'
+import { dailyScore } from './domain/score'
 import { setSystemBars } from './lib/widget'
 import { makeBackup, parseBackup, mergeBackup, countOf, type Parsed } from './lib/backup'
 
@@ -214,7 +216,7 @@ export default class App extends React.Component<Props, State> {
   animNums() {
     const p = this.shown, c = this.nums; this.shown = c; if (!p || !c || this.rm()) return
     const lag = this.peak ? 520 : 0
-    ;['streak', 'best', 'mt', 'mx'].forEach(n => { if (p[n] !== c[n] && !(n === 'streak' && this.switching)) this.countTo(n, p[n], c[n], n === 'streak' || n === 'best' ? lag : 0) })
+    ;['total', 'best', 'mt', 'mx'].forEach(n => { if (p[n] !== c[n] && !(n === 'total' && this.switching)) this.countTo(n, p[n], c[n], n === 'total' || n === 'best' ? lag : 0) })
     const bar = this.q('[data-anim="bar"]')
     if (bar && p.bar !== c.bar) { const f = `scaleX(${p.bar})`, t = `scaleX(${c.bar})`; bar.animate(this.peak && c.bar < p.bar ? [{ transform: f }, { transform: 'scaleX(1)', offset: .45 }, { transform: 'scaleX(1)', offset: .7 }, { transform: t }] : [{ transform: f }, { transform: t }], { duration: this.peak ? 1300 : 450, easing: EASE }) }
   }
@@ -367,7 +369,8 @@ export default class App extends React.Component<Props, State> {
       weeks.push({ wk: 'W' + isoWeek(mon), days })
     }
     const st = this.streaks(M), nx = nextMs(st.cur)
-    this.nums = { streak: st.cur, best: st.best, mt, mx, bar: +Math.min(1, st.cur / nx).toFixed(3) }
+    const bd = badge(H, t, ws), score = dailyScore(this.doc(), t)
+    this.nums = { total: bd.total, streak: st.cur, best: st.best, mt, mx, bar: +Math.min(1, st.cur / nx).toFixed(3) }
     const seed = s.y * 12 + s.m, off = (i: number, r: number) => { const v = Math.sin(seed * 12.9898 + i * 78.233) * 43758.5453; return Math.round((v - Math.floor(v) - .5) * 2 * r) + 'px' }
     const upcoming: any[] = []; const ty = +t.slice(0, 4)
     ;[ty, ty + 1].forEach(y => Object.entries(holidaysFor(y)).sort().forEach(([k, n]) => { if (k >= t && upcoming.length < 4) { const d = parse(k); const diff = Math.round((+d - +parse(t)) / 864e5); upcoming.push({ key: k, cls: 'hol' + (upcoming.length + 1), name: n.join(' · '), when: short(d) + (diff === 0 ? ' · today' : diff === 1 ? ' · tomorrow' : diff < 31 ? ' · in ' + diff + ' days' : '') }) } }))
@@ -378,12 +381,12 @@ export default class App extends React.Component<Props, State> {
       sel = { weekday: WD[d.getDay()] + (s.sel === t ? ' · Today' : ''), dayColor: d.getDay() === 0 || hol ? 'var(--red)' : 'var(--ink)', date: d.getDate() + ' ' + MONTHS[d.getMonth()] + ' ' + d.getFullYear(), hol, tithi: tithiLabel(panchang(d)),
         facts: (nH > 1 ? [H.name] : []).concat(['Day ' + dayOfYear(d) + ' of ' + yl, 'Week ' + isoWeek(d)]), mark, note: s.notes[s.sel] || '' }
     }
-    return { st, nx, weeks, upcoming, dots, sel, dark, off, mt, mx }
+    return { st, nx, weeks, upcoming, dots, sel, dark, off, mt, mx, bd, score }
   }
 
   render() {
     const s = this.state, V = this.renderVals(), H = this.habit(), nH = s.habits.length, hi = this.hIdx(), sw = this.props.showWeekNumbers ?? true
-    const { st, nx, weeks, upcoming, dots, sel, dark, off } = V
+    const { st, nx, weeks, upcoming, dots, sel, dark, off, bd, score } = V
     const bg = (a: string, b: string) => `translate(${off(...(a.split(',').map(Number) as [number, number]))},${off(...(b.split(',').map(Number) as [number, number]))})`
     const bgA = bg('1,36', '2,28'), bgB = bg('3,18', '4,56'), bgC = bg('5,56', '6,22'), bgD = bg('7,22', '8,40')
     const discs: [React.CSSProperties, string][] = [
@@ -421,15 +424,15 @@ export default class App extends React.Component<Props, State> {
               <span style={{ font: `300 24px/1.05 ${FONT}`, letterSpacing: '-.02em' }}>{MONTHS[s.m]}</span>
               <span style={{ font: `300 12px/1.2 ${FONT}` }}>{s.y}</span>
             </button>
-            <button data-anim="badge" aria-label={`${habitName}: ${st.cur}-day streak, next milestone ${nx}.${nH > 1 ? ` Habit ${hi + 1} of ${nH}.` : ''} Tap to manage habits${nH > 1 ? ', swipe up or down to switch.' : '.'}`}
+            <button data-anim="badge" aria-label={`${habitName}: ${bd.total} total, ${bd.sub}.${nH > 1 ? ` Habit ${hi + 1} of ${nH}.` : ''} Tap to manage habits${nH > 1 ? ', swipe up or down to switch.' : '.'}`}
               onClick={this.bClick} onKeyDown={this.bKey} onPointerDown={this.bDown} onPointerMove={this.bMove} onPointerUp={this.bUp} onPointerCancel={this.bCancel} onContextMenu={e => e.preventDefault()}
-              style={{ position: 'relative', flex: 'none', display: 'flex', alignItems: 'center', gap: 8, height: 50, padding: `0 ${nH > 1 ? 10 : 14}px 4px 12px`, boxSizing: 'border-box', border: 0, borderRadius: 15, background: 'var(--c10)', color: '#14161A', overflow: 'hidden', cursor: 'pointer', touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' } as React.CSSProperties}>
+              style={{ position: 'relative', flex: '0 1 auto', minWidth: 0, maxWidth: 226, display: 'flex', alignItems: 'center', gap: 8, height: 50, padding: `0 ${nH > 1 ? 10 : 14}px 4px 12px`, boxSizing: 'border-box', border: 0, borderRadius: 15, background: 'var(--c10)', color: '#14161A', overflow: 'hidden', cursor: 'pointer', touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' } as React.CSSProperties}>
               <span data-anim="drain" aria-hidden="true" style={{ position: 'absolute', inset: 0, background: 'rgba(20,22,26,.3)', transform: 'scaleY(0)', transformOrigin: 'top', pointerEvents: 'none' }} />
               <span data-anim="hroll" style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 9 }}>
-                <span data-anim="streak" style={{ font: `600 28px/1 ${FONT}`, fontVariantNumeric: 'tabular-nums', minWidth: 18, textAlign: 'right' }}>{st.cur}</span>
-                <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', font: `500 11px/1.15 ${FONT}`, textTransform: 'uppercase', letterSpacing: '.06em' }}>
-                  <span style={{ maxWidth: 84, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{habitName}</span>
-                  <span>streak</span>
+                <span data-anim="total" style={{ font: `600 28px/1 ${FONT}`, fontVariantNumeric: 'tabular-nums', minWidth: 18, textAlign: 'right' }}>{bd.total}</span>
+                <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', minWidth: 0, font: `500 12px/1.2 ${FONT}` }}>
+                  <span style={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{habitName}</span>
+                  <span style={{ font: `400 12px/1.2 ${FONT}`, whiteSpace: 'nowrap' }}>{bd.sub}</span>
                 </span>
               </span>
               {nH > 1 && <span aria-hidden="true" style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, width: 6 }}>
@@ -487,6 +490,7 @@ export default class App extends React.Component<Props, State> {
             <section data-anim="monthcard" className="glassfade" style={{ padding: '11px 14px', borderRadius: 20, background: 'var(--card30)', color: '#fff', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', display: 'flex', flexDirection: 'column', gap: 8, minHeight: 0, overflow: 'hidden' }}>
               <div style={lbl}>This month</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {score && <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}><span style={{ font: `300 14px/1.2 ${FONT}` }}>Today</span><span data-anim="score" style={{ font: `400 20px/1 ${FONT}`, fontVariantNumeric: 'tabular-nums', opacity: score.done ? 1 : .6 }}>{score.done} / {score.of}</span></div>}
                 {([['Done', 'mt', V.mt], ['Missed', 'mx', V.mx]] as const).map(([l, a, v]) => <div key={a} style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}><span style={{ font: `300 14px/1.2 ${FONT}` }}>{l}</span><span data-anim={a} style={{ font: `400 20px/1 ${FONT}`, fontVariantNumeric: 'tabular-nums' }}>{v}</span></div>)}
                 <div style={{ height: 1, background: 'rgba(255,255,255,.4)' }} />
                 <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}><span style={{ font: `300 14px/1.2 ${FONT}` }}>Best streak</span><span data-anim="best" style={{ font: `400 20px/1 ${FONT}`, fontVariantNumeric: 'tabular-nums' }}>{st.best}</span></div>
@@ -571,7 +575,7 @@ export default class App extends React.Component<Props, State> {
                     </>)}
                     {cf && (<>
                       <span style={{ flex: 1, minWidth: 0, padding: '0 6px', font: `400 14px/1.3 ${FONT}` }}>{`Delete ${h.name} and its ${ticks} ${ticks === 1 ? 'tick?' : 'ticks?'}`}</span>
-                      <button className="glassfade" onClick={() => this.delHabit(h.id)} style={{ height: 40, padding: '0 12px', borderRadius: 12, border: 0, background: 'var(--cross)', color: '#fff', cursor: 'pointer', font: `600 14px/1 ${FONT}` }}>Delete</button>
+                      <button className="glassfade" onClick={() => this.delHabit(h.id)} style={{ height: 40, padding: '0 12px', borderRadius: 12, border: 0, background: 'var(--red)', color: '#fff', cursor: 'pointer', font: `600 14px/1 ${FONT}` }}>Delete</button>
                       <button className="glassfade" onClick={() => this.setState({ confirmId: null })} style={{ ...btnG, height: 40, padding: '0 12px', borderRadius: 12 }}>Cancel</button>
                     </>)}
                   </div>
