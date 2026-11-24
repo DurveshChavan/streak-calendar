@@ -6,17 +6,15 @@ import { MONTHS, WD, pad, keyOf, parse, holiday, holidaysFor, isoWeek, dayOfYear
 import { streaks as calcStreaks, peaks as calcPeaks, nextMs, type Marks, type Mark } from './domain/streaks'
 import { store, type Doc, type Habit } from './lib/store'
 import type { AvoidItem, Settings, WeekStart } from './domain/types'
-import { badge } from './domain/badge'
+import { badge, weekLine } from './domain/badge'
 import { dailyScore } from './domain/score'
 import * as act from './domain/actions'
 import { kindOf, isBuild } from './domain/types'
+import HabitEdit from './ui/HabitEdit'
 import { setSystemBars } from './lib/widget'
 import { makeBackup, parseBackup, mergeBackup, countOf, type Parsed } from './lib/backup'
 
-const FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Roboto,sans-serif"
-const EASE = 'cubic-bezier(.2,.8,.2,1)'
-const glass = (blur = 20, sat = 1.3): React.CSSProperties => ({ background: 'var(--glass)', backdropFilter: `blur(${blur}px) saturate(${sat})`, WebkitBackdropFilter: `blur(${blur}px) saturate(${sat})`, border: '1px solid var(--line)' })
-const sq = (w: number, extra: React.CSSProperties = {}): React.CSSProperties => ({ width: w, height: w, flex: 'none', borderRadius: 14, border: '1px solid var(--line)', background: 'var(--cell)', cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0, ...extra })
+import { FONT, EASE, glass, sq } from './ui/style'
 
 // on-screen angle of a day's cube, read mid-turn; the turn speed is capped from it
 function cubeAngle(btn: Element | null) { const c = btn && btn.firstElementChild; if (!c) return 0; try { const m = new DOMMatrix(getComputedStyle(c).transform); return Math.atan2(-m.m13, m.m11) * 180 / Math.PI } catch { return 0 } }
@@ -58,7 +56,7 @@ interface State {
   sel: string | null; drag: { k: string; dx: number; dur: number } | null; lastDrag: string | null; snap: string | null
   turn: { k: string; from: Mark | null; dir: number; ph: number } | null; settle: { k: string; from: Mark | null; to: Mark | null; dir: number; dur: number } | null
   toast: { k: string; prev: Mark | null; hid: string; text: string } | null; toastOut: boolean; closing: boolean; instant: boolean
-  hOpen: boolean; hClosing: boolean; editId: string | null; editName: string; confirmId: string | null; newName: string
+  hOpen: boolean; hClosing: boolean; hEdit: string | null; confirmId: string | null; avName: string; avRep: string
   syncOpen: boolean; syncUrl: string; syncToken: string
   bkOpen: boolean; bkText: string; bkMsg: string; bkPending: Parsed | null
 }
@@ -75,14 +73,14 @@ export default class App extends React.Component<Props, State> {
     const d = store.doc, t = new Date()
     this.state = { y: t.getFullYear(), m: t.getMonth(), habits: d.habits, cur: d.cur, notes: d.notes, theme: d.theme, avoid: d.avoid, settings: d.settings,
       sel: null, drag: null, lastDrag: null, snap: null, turn: null, settle: null, toast: null, toastOut: false, closing: false, instant: false,
-      hOpen: false, hClosing: false, editId: null, editName: '', confirmId: null, newName: '', syncOpen: false, syncUrl: store.meta.url, syncToken: store.meta.token, bkOpen: false, bkText: '', bkMsg: '', bkPending: null }
+      hOpen: false, hClosing: false, hEdit: null, confirmId: null, avName: '', avRep: '', syncOpen: false, syncUrl: store.meta.url, syncToken: store.meta.token, bkOpen: false, bkText: '', bkMsg: '', bkPending: null }
     store.onRemote((doc: Doc) => this.setState({ habits: doc.habits, notes: doc.notes, cur: doc.cur, avoid: doc.avoid, settings: doc.settings }))
     store.onStatus(() => this.forceUpdate())
   }
   componentDidMount() {
     this.applyTheme(); this.shown = this.nums; document.addEventListener('visibilitychange', this.onVis)
     // Android back closes the open sheet first, instead of leaving the app
-    if (Capacitor.isNativePlatform()) NativeApp.addListener('backButton', () => { if (this.state.sel) this.closeSheet(); else if (this.state.hOpen) this.closeHabits(); else NativeApp.minimizeApp() })
+    if (Capacitor.isNativePlatform()) NativeApp.addListener('backButton', () => { if (this.state.hEdit) this.setState({ hEdit: null }); else if (this.state.sel) this.closeSheet(); else if (this.state.hOpen) this.closeHabits(); else NativeApp.minimizeApp() })
   }
   componentDidUpdate() { this.applyTheme(); this.animNums() }
   componentWillUnmount() { [this.tt, this.to, this.ct, this.hct, this.tnt, this.stt].forEach(clearTimeout); Object.values(this.rt).forEach(clearTimeout); Object.values(this.raf).forEach(cancelAnimationFrame); document.removeEventListener('visibilitychange', this.onVis) }
@@ -188,28 +186,39 @@ export default class App extends React.Component<Props, State> {
   open(k: string) { clearTimeout(this.ct); this.setState({ sel: k, closing: false }) }
 
   // ---- habits ----
-  switchHabit(dir: number) { const s = this.state, j = this.hIdx() + dir; if (j < 0 || j >= s.habits.length) { this.bump(dir); return } this.toHabit(s.habits[j].id, dir) }
+  switchHabit(dir: number) { const s = this.state; let j = this.hIdx() + dir; while (j >= 0 && j < s.habits.length && s.habits[j].later) j += dir; if (j < 0 || j >= s.habits.length) { this.bump(dir); return } this.toHabit(s.habits[j].id, dir) }
   toHabit(id: string, dir: number) { if (id === this.state.cur) return; this.switching = true; this.save({ cur: id }, () => { this.switching = false; this.rollBadge(dir) }); this.buzz(8) }
   rollBadge(dir: number) { if (this.rm()) return; const r = this.q('[data-anim="hroll"]'); if (r) r.animate([{ transform: `translateY(${dir > 0 ? 60 : -60}%)`, opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 260, easing: EASE }) }
   bump(dir: number) { this.buzz([5, 40, 5]); if (this.rm()) return; const b = this.q('[data-anim="badge"]'); if (b) b.animate([{ transform: 'none' }, { transform: `translateY(${dir > 0 ? -5 : 5}px)`, offset: .4 }, { transform: 'none' }], { duration: 280, easing: 'ease-out' }) }
-  openHabits() { clearTimeout(this.hct); this.setState({ hOpen: true, hClosing: false, editId: null, confirmId: null, newName: '' }) }
+  openHabits() { clearTimeout(this.hct); this.setState({ hOpen: true, hClosing: false, hEdit: null, confirmId: null }) }
   closeHabits() {
     if (this.state.hClosing || !this.state.hOpen) return
-    if (this.rm()) { this.setState({ hOpen: false, editId: null, confirmId: null }); return }
-    this.setState({ hClosing: true }); clearTimeout(this.hct); this.hct = setTimeout(() => this.setState({ hOpen: false, hClosing: false, editId: null, confirmId: null }), 200)
+    if (this.rm()) { this.setState({ hOpen: false, hEdit: null, confirmId: null }); return }
+    this.setState({ hClosing: true }); clearTimeout(this.hct); this.hct = setTimeout(() => this.setState({ hOpen: false, hClosing: false, hEdit: null, confirmId: null }), 200)
   }
   pickHabit(id: string, i: number) { const d = Math.sign(i - this.hIdx()); if (d) this.toHabit(id, d); this.closeHabits() }
-  addHabit() {
-    const s = this.state, taken = new Set(s.habits.map(h => h.name)); let n = s.habits.length + 1; while (taken.has('Habit ' + n)) n++
-    const id = 'h' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name = s.newName.trim().slice(0, 24) || 'Habit ' + n
-    this.switching = true; this.save({ habits: [...s.habits, { id, name, marks: {} }], cur: id, newName: '' }, () => { this.switching = false; this.rollBadge(1) }); this.buzz(8)
+  newId() { return 'h' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6) }
+  saveHabit(h: Habit) {
+    const isNew = !this.state.habits.some(x => x.id === h.id)
+    if (isNew) { this.switching = true; this.apply(d => act.upsertHabit(d, h), { cur: h.id, hEdit: null }); setTimeout(() => { this.switching = false; this.rollBadge(1) }); this.buzz(8) }
+    else this.apply(d => act.upsertHabit(d, h), { hEdit: null })
+  }
+  setLater(id: string, later: boolean) {
+    const s = this.state, active = s.habits.filter(h => !h.later && h.id !== id)
+    if (later && !active.length) return
+    const extra: Partial<State> = { hEdit: null }
+    if (later && s.cur === id) extra.cur = active[0].id
+    this.apply(d => act.setLater(d, id, later), extra)
+  }
+  addAvoid() {
+    const s = this.state, name = s.avName.trim().slice(0, 40)
+    if (!name) return
+    this.apply(d => act.upsertAvoid(d, { id: this.newId(), name, replacement: s.avRep.trim().slice(0, 80) }), { avName: '', avRep: '' })
   }
   moveHabit(id: string, d: number) { const hs = this.state.habits.slice(), i = hs.findIndex(h => h.id === id), j = i + d; if (i < 0 || j < 0 || j >= hs.length) return;[hs[i], hs[j]] = [hs[j], hs[i]]; this.save({ habits: hs }) }
-  startEdit(h: Habit) { this.setState({ editId: h.id, editName: h.name, confirmId: null }, () => { const el = this.q('[data-hedit]') as HTMLElement | null; if (el) el.focus() }) }
-  saveEdit() { const s = this.state, name = s.editName.trim().slice(0, 24); this.save({ habits: s.habits.map(h => h.id === s.editId && name ? { ...h, name } : h), editId: null }) }
   delHabit(id: string) {
-    const s = this.state; if (s.habits.length < 2) return; const i = s.habits.findIndex(h => h.id === id), hs = s.habits.filter(h => h.id !== id), patch: Partial<State> = { habits: hs, confirmId: null }, wasCur = s.cur === id
-    if (wasCur) { patch.cur = hs[Math.max(0, i - 1)].id; this.switching = true }
+    const s = this.state; if (s.habits.filter(h => !h.later && h.id !== id).length < 1) return; const i = s.habits.findIndex(h => h.id === id), hs = s.habits.filter(h => h.id !== id), patch: Partial<State> = { habits: hs, confirmId: null }, wasCur = s.cur === id
+    if (wasCur) { patch.cur = (hs.slice(0, i).reverse().find(h => !h.later) || hs.find(h => !h.later))!.id; this.switching = true }
     this.save(patch, () => { if (wasCur) { this.switching = false; this.rollBadge(-1) } })
   }
 
@@ -362,11 +371,12 @@ export default class App extends React.Component<Props, State> {
           numTr: tm ? `transform ${tm}s ${E}` : 'none', icoTr: tm ? `opacity ${tm}s ${E}, transform ${tm}s ${E}` : 'none',
           dashTr: tm ? `stroke-dashoffset ${tm}s ${E}` : 'none', dashTr2: tm ? `stroke-dashoffset ${(tm * .75).toFixed(2)}s ${E} ${(tm * .2).toFixed(2)}s` : 'none' })
         const was = turn ? turn.from : null, pR = st8 ? (st8.dir > 0 ? 1 : 0) : dx > 0 ? q : 0, pL = st8 ? (st8.dir < 0 ? 1 : 0) : dx < 0 ? q : 0
-        days.push({ key: k, num: dt.getDate(), op: out ? '.38' : '1', z: sides ? 3 : 'auto', weight: red || isToday ? 700 : 400, ang: ang.toFixed(2), cubeTr,
+        const cnt = kindOf(H) === 'reduce' ? H.urges?.[k] : kindOf(H) === 'number' ? H.values?.[k] : undefined
+        days.push({ key: k, num: dt.getDate(), cnt, op: out ? '.38' : '1', z: sides ? 3 : 'auto', weight: red || isToday ? 700 : 400, ang: ang.toFixed(2), cubeTr,
           f: fx(flat && dx ? faceVals(base, dx > 0 ? tR : tL, q, isToday, red) : faceVals(base, base, 1, isToday, red), 0, true),
           l: fx(turn ? faceVals(was, was, 1, isToday, red) : faceVals(base, tR, pR, isToday, red), -90, sides),
           r: fx(turn ? faceVals(was, was, 1, isToday, red) : faceVals(base, tL, pL, isToday, red), 90, sides),
-          aria: WD[dt.getDay()] + ' ' + dt.getDate() + ' ' + MONTHS[dt.getMonth()] + (out ? ' (other month)' : '') + (hol ? ', ' + hol : '') + (mark === 't' ? ', done' : mark === 'x' ? ', missed' : '') })
+          aria: WD[dt.getDay()] + ' ' + dt.getDate() + ' ' + MONTHS[dt.getMonth()] + (out ? ' (other month)' : '') + (hol ? ', ' + hol : '') + (mark === 't' ? ', done' : mark === 'x' ? ', missed' : '') + (cnt != null ? ', ' + cnt : '') })
       }
       const mon = new Date(s.y, s.m, 1 - lead + c * 7 + (1 - ws + 7) % 7)
       weeks.push({ wk: 'W' + isoWeek(mon), days })
@@ -402,7 +412,7 @@ export default class App extends React.Component<Props, State> {
   }
 
   render() {
-    const s = this.state, V = this.renderVals(), H = this.habit(), nH = s.habits.length, hi = this.hIdx(), sw = this.props.showWeekNumbers ?? true
+    const s = this.state, V = this.renderVals(), H = this.habit(), nH = s.habits.length, nActive = s.habits.filter(h => !h.later).length, hi = this.hIdx(), sw = this.props.showWeekNumbers ?? true
     const { st, nx, weeks, upcoming, dots, sel, dark, off, bd, score } = V
     const bg = (a: string, b: string) => `translate(${off(...(a.split(',').map(Number) as [number, number]))},${off(...(b.split(',').map(Number) as [number, number]))})`
     const bgA = bg('1,36', '2,28'), bgB = bg('3,18', '4,56'), bgC = bg('5,56', '6,22'), bgD = bg('7,22', '8,40')
@@ -494,6 +504,7 @@ export default class App extends React.Component<Props, State> {
                           <CubeFace name="l" v={d.l} num={d.num} />
                           <CubeFace name="r" v={d.r} num={d.num} />
                         </span>
+                        {d.cnt != null && <span aria-hidden="true" style={{ position: 'absolute', right: 3, bottom: 3, minWidth: 16, height: 16, padding: '0 4px', boxSizing: 'border-box', borderRadius: 8, background: 'var(--ink)', color: 'var(--bg)', font: `600 10px/16px ${FONT}`, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{d.cnt}</span>}
                       </button>
                     ))}
                   </div>
@@ -505,12 +516,13 @@ export default class App extends React.Component<Props, State> {
 
           <div className="rise cards" style={{ animationDelay: '80ms' }}>
             <section data-anim="monthcard" className="glassfade" style={{ padding: '11px 14px', borderRadius: 20, background: 'var(--card30)', color: '#fff', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', display: 'flex', flexDirection: 'column', gap: 8, minHeight: 0, overflow: 'hidden' }}>
-              <div style={lbl}>This month</div>
+              <div style={lbl}>{kindOf(H) === 'daily' ? 'This month' : 'Progress'}</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {score && <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}><span style={{ font: `300 14px/1.2 ${FONT}` }}>Today</span><span data-anim="score" style={{ font: `400 20px/1 ${FONT}`, fontVariantNumeric: 'tabular-nums', opacity: score.done ? 1 : .6 }}>{score.done} / {score.of}</span></div>}
-                {([['Done', 'mt', V.mt], ['Missed', 'mx', V.mx]] as const).map(([l, a, v]) => <div key={a} style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}><span style={{ font: `300 14px/1.2 ${FONT}` }}>{l}</span><span data-anim={a} style={{ font: `400 20px/1 ${FONT}`, fontVariantNumeric: 'tabular-nums' }}>{v}</span></div>)}
-                <div style={{ height: 1, background: 'rgba(255,255,255,.4)' }} />
-                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}><span style={{ font: `300 14px/1.2 ${FONT}` }}>Best streak</span><span data-anim="best" style={{ font: `400 20px/1 ${FONT}`, fontVariantNumeric: 'tabular-nums' }}>{st.best}</span></div>
+                {kindOf(H) === 'daily' ? ([['Done', 'mt', V.mt], ['Missed', 'mx', V.mx]] as const).map(([l, a, v]) => <div key={a} style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}><span style={{ font: `300 14px/1.2 ${FONT}` }}>{l}</span><span data-anim={a} style={{ font: `400 20px/1 ${FONT}`, fontVariantNumeric: 'tabular-nums' }}>{v}</span></div>)
+                  : <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}><span style={{ font: `300 14px/1.2 ${FONT}` }}>This week</span><span style={{ font: `400 17px/1 ${FONT}`, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{weekLine(H, this.today(), s.settings.weekStart)}</span></div>}
+                {kindOf(H) === 'daily' && <><div style={{ height: 1, background: 'rgba(255,255,255,.4)' }} />
+                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}><span style={{ font: `300 14px/1.2 ${FONT}` }}>Best streak</span><span data-anim="best" style={{ font: `400 20px/1 ${FONT}`, fontVariantNumeric: 'tabular-nums' }}>{st.best}</span></div></>}
               </div>
             </section>
             <section className="glassfade" style={{ padding: '11px 14px', borderRadius: 20, ...glass(), display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
@@ -566,7 +578,7 @@ export default class App extends React.Component<Props, State> {
             {kindOf(H) === 'reduce' && this.counter('Urges resisted', H.urges?.[s.sel] || 0, dl => this.apply(d => act.addUrge(d, H.id, s.sel!, dl)))}
             {kindOf(H) === 'reduce' && !!H.budget && this.counter('It happened', H.slips?.[s.sel] || 0, dl => this.apply(d => act.addSlip(d, H.id, s.sel!, dl)))}
             {kindOf(H) === 'number' && <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, font: `400 15px/1.3 ${FONT}` }}>
-              {H.unit || 'Value'}
+              {H.unit ? H.unit[0].toUpperCase() + H.unit.slice(1) : 'Value'}
               <input key={H.id + s.sel} type="number" inputMode="decimal" defaultValue={H.values?.[s.sel] ?? ''} onBlur={e => { const v = e.target.value.trim(), n = Number(v); this.apply(d => act.setValue(d, H.id, s.sel!, v === '' || !Number.isFinite(n) ? null : n)) }}
                 style={{ ...input, width: 120, height: 48, padding: '0 14px', textAlign: 'right' }} />
             </label>}
@@ -575,6 +587,13 @@ export default class App extends React.Component<Props, State> {
           </div>
         </>)}
 
+        {s.hEdit && (<>
+          <div data-scrim="1" onClick={() => this.setState({ hEdit: null })} style={{ position: 'fixed', inset: 0, zIndex: 22, background: 'rgba(0,0,0,.3)' }} />
+          <div role="dialog" aria-label={s.hEdit === 'new' ? 'New habit' : 'Edit habit'} style={{ ...sheet(true, false), zIndex: 23 }}>
+            <HabitEdit key={s.hEdit} old={s.habits.find(h => h.id === s.hEdit)} newId={this.newId()} onSave={h => this.saveHabit(h)} onCancel={() => this.setState({ hEdit: null })}
+              onLater={nActive > 1 ? () => this.setLater(s.hEdit!, true) : undefined} />
+          </div>
+        </>)}
         {s.hOpen && (<>
           <div {...scrim(s.hClosing, () => this.closeHabits())} />
           <div role="dialog" aria-label="Habits" style={{ ...sheet(true, s.hClosing), gap: 12 }}>
@@ -584,25 +603,20 @@ export default class App extends React.Component<Props, State> {
               <button className="glassfade" aria-label="Close" onClick={() => this.closeHabits()} style={{ ...sq(44), font: '300 24px/1 sans-serif' }}>×</button>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {s.habits.map((h, i) => {
-                const ed = s.editId === h.id, cf = s.confirmId === h.id, isCur = h.id === s.cur, ticks = Object.values(h.marks).filter(v => v === 't').length
+              {s.habits.map((h, i) => h.later ? null : (() => {
+                const cf = s.confirmId === h.id, isCur = h.id === s.cur, ticks = Object.values(h.marks).filter(v => v === 't').length
                 const dis = (off: boolean): React.CSSProperties => ({ opacity: off ? .35 : 1 })
                 return (
                   <div key={h.id} style={{ display: 'flex', alignItems: 'center', gap: 6, minHeight: 50, padding: 4, boxSizing: 'border-box', borderRadius: 14, border: '1px solid var(--line)', background: isCur ? 'var(--cell)' : 'transparent' }}>
-                    {!ed && !cf && (<>
+                    {!cf && (<>
                       <button className="tap" onClick={() => this.pickHabit(h.id, i)} aria-label={'Switch to ' + h.name + (isCur ? ', current habit' : '')} style={{ all: 'unset', cursor: 'pointer', flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 10, padding: '8px 6px 8px 8px' }}>
                         <span style={{ width: 10, height: 10, flex: 'none', boxSizing: 'border-box', borderRadius: '50%', border: '1.5px solid var(--ink)', background: isCur ? 'var(--c10)' : 'transparent' }} />
                         <span style={{ font: `400 16px/1.2 ${FONT}`, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{h.name}</span>
                       </button>
                       <button className="glassfade" aria-label={'Move ' + h.name + ' up'} disabled={i === 0} onClick={() => this.moveHabit(h.id, -1)} style={{ ...rowBtn, ...dis(i === 0) }}>{ico('M12 19V5M6 11l6-6 6 6')}</button>
                       <button className="glassfade" aria-label={'Move ' + h.name + ' down'} disabled={i === nH - 1} onClick={() => this.moveHabit(h.id, 1)} style={{ ...rowBtn, ...dis(i === nH - 1) }}>{ico('M12 5v14M6 13l6 6 6-6')}</button>
-                      <button className="glassfade" aria-label={'Rename ' + h.name} onClick={() => this.startEdit(h)} style={rowBtn}>{ico('M4 20h4L19 9l-4-4L4 16v4z')}</button>
-                      <button className="glassfade" aria-label={'Delete ' + h.name} disabled={nH < 2} onClick={() => this.setState({ confirmId: h.id, editId: null })} style={{ ...rowBtn, ...dis(nH < 2) }}>{ico('M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3')}</button>
-                    </>)}
-                    {ed && (<>
-                      <input data-hedit="1" value={s.editName} onChange={e => this.setState({ editName: e.target.value.slice(0, 24) })} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); this.saveEdit() } else if (e.key === 'Escape') { e.preventDefault(); this.setState({ editId: null }) } }} aria-label="Habit name" placeholder="Habit name" style={{ ...input, flex: 1, height: 40, padding: '0 12px' }} />
-                      <button className="glassfade" onClick={() => this.saveEdit()} style={{ ...btnY, height: 40, padding: '0 12px', borderRadius: 12 }}>Save</button>
-                      <button className="glassfade" onClick={() => this.setState({ editId: null })} style={{ ...btnG, height: 40, padding: '0 12px', borderRadius: 12 }}>Cancel</button>
+                      <button className="glassfade" aria-label={'Edit ' + h.name} onClick={() => this.setState({ hEdit: h.id, confirmId: null })} style={rowBtn}>{ico('M4 20h4L19 9l-4-4L4 16v4z')}</button>
+                      <button className="glassfade" aria-label={'Delete ' + h.name} disabled={nActive < 2} onClick={() => this.setState({ confirmId: h.id })} style={{ ...rowBtn, ...dis(nActive < 2) }}>{ico('M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3')}</button>
                     </>)}
                     {cf && (<>
                       <span style={{ flex: 1, minWidth: 0, padding: '0 6px', font: `400 14px/1.3 ${FONT}` }}>{`Delete ${h.name} and its ${ticks} ${ticks === 1 ? 'tick?' : 'ticks?'}`}</span>
@@ -611,12 +625,36 @@ export default class App extends React.Component<Props, State> {
                     </>)}
                   </div>
                 )
-              })}
+              })())}
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <input value={s.newName} onChange={e => this.setState({ newName: e.target.value.slice(0, 24) })} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); this.addHabit() } }} aria-label="New habit name" placeholder="New habit name" style={{ ...input, flex: 1, height: 48, borderRadius: 14, padding: '0 14px' }} />
-              <button className="glassfade" onClick={() => this.addHabit()} style={{ ...btnY, height: 48, padding: '0 18px', borderRadius: 14, font: `600 15px/1 ${FONT}` }}>Add</button>
+            <button className="glassfade" onClick={() => this.setState({ hEdit: 'new' })} style={{ ...btnY, height: 48, borderRadius: 14, font: `600 15px/1 ${FONT}` }}>+ New habit</button>
+            {s.habits.some(h => h.later) && <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={lbl}>Later</div>
+              {s.habits.filter(h => h.later).map(h => (
+                <div key={h.id} style={{ display: 'flex', alignItems: 'center', gap: 6, minHeight: 50, padding: '4px 4px 4px 12px', boxSizing: 'border-box', borderRadius: 14, border: '1px solid var(--line)' }}>
+                  <span style={{ flex: 1, minWidth: 0, font: `400 16px/1.2 ${FONT}`, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', opacity: .7 }}>{h.name}</span>
+                  <button className="glassfade" onClick={() => this.setLater(h.id, false)} style={{ ...btnG, height: 40, padding: '0 12px', borderRadius: 12 }}>Resume</button>
+                </div>
+              ))}
+            </div>}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={lbl}>Avoid</div>
+              {s.avoid.map(a => (
+                <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 6, minHeight: 50, padding: '4px 4px 4px 12px', boxSizing: 'border-box', borderRadius: 14, border: '1px solid var(--line)' }}>
+                  <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <span style={{ font: `400 16px/1.2 ${FONT}`, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</span>
+                    {a.replacement && <span style={{ font: `300 13px/1.2 ${FONT}`, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Instead: {a.replacement}</span>}
+                  </span>
+                  <button className="glassfade" aria-label={'Remove ' + a.name} onClick={() => this.apply(d => act.removeAvoid(d, a.id))} style={rowBtn}>{ico('M6 6l12 12M18 6L6 18')}</button>
+                </div>
+              ))}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 6 }}>
+                <input value={s.avName} onChange={e => this.setState({ avName: e.target.value })} maxLength={40} aria-label="Thing to avoid" placeholder="Avoid…" style={{ ...input, height: 44, padding: '0 12px' }} />
+                <input value={s.avRep} onChange={e => this.setState({ avRep: e.target.value })} onKeyDown={e => { if (e.key === 'Enter') this.addAvoid() }} maxLength={80} aria-label="Instead" placeholder="Instead…" style={{ ...input, height: 44, padding: '0 12px' }} />
+                <button className="glassfade" onClick={() => this.addAvoid()} style={{ ...btnG, height: 44, padding: '0 12px', borderRadius: 12 }}>Add</button>
+              </div>
             </div>
+
 
             <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, font: `300 13px/1.3 ${FONT}` }}>
               Week starts on
