@@ -196,8 +196,7 @@ export default class App extends React.Component<Props, State> {
   closeHabits() {
     if (this.state.hClosing || !this.state.hOpen) return
     if (this.rm()) { this.setState({ hOpen: false, hEdit: null, confirmId: null }); return }
-    this.setState({ hClosing: true }); clearTimeout(this.hct); this.hct = setTimeout(() => this.setState({ timer: null, timerHint: '', view: null, twoMiss: null, reviewSeen: localStorage.getItem('streakcal.review') || '',
-      hOpen: false, hClosing: false, hEdit: null, confirmId: null }), 200)
+    this.setState({ hClosing: true }); clearTimeout(this.hct); this.hct = setTimeout(() => this.setState({ hOpen: false, hClosing: false, hEdit: null, confirmId: null }), 200)
   }
   pickHabit(id: string, i: number) { const d = Math.sign(i - this.hIdx()); if (d) this.toHabit(id, d); this.closeHabits() }
   syncTimer = async () => {

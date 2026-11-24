@@ -17,7 +17,7 @@ const d = new Date(), today = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad
 const ago = n => { const x = new Date(d); x.setDate(x.getDate() - n); return `${x.getFullYear()}-${pad(x.getMonth() + 1)}-${pad(x.getDate())}` }
 
 const browser = await chromium.launch()
-const ctx = await browser.newContext({ viewport: { width: 412, height: 915 }, deviceScaleFactor: 1, reducedMotion: 'reduce', colorScheme: process.env.DARK ? 'dark' : 'light' })
+const ctx = await browser.newContext({ viewport: { width: 412, height: 915 }, deviceScaleFactor: 1, reducedMotion: process.env.MOTION ? 'no-preference' : 'reduce', colorScheme: process.env.DARK ? 'dark' : 'light' })
 const page = await ctx.newPage()
 const errors = []
 page.on('pageerror', e => errors.push(String(e)))
@@ -88,6 +88,7 @@ const journeys = {
       expect(!out, `${name}: Shift+Tab stays inside`)
       await shot('dialog-' + name.replace(/\W+/g, '-'))
       await page.keyboard.press('Escape'); await dlg.waitFor({ state: 'detached', timeout: 2000 }).catch(() => {})
+      await page.waitForTimeout(100)
       expect(await dlg.count() === 0, `${name}: Escape closes it`)
       const back = await opener.evaluate(e => e === document.activeElement)
       expect(back, `${name}: focus returns to the opener (${JSON.stringify(await focused())})`)
@@ -98,6 +99,28 @@ const journeys = {
     await page.locator('button[data-anim="badge"]').press('Enter'); await page.getByRole('dialog', { name: 'Habits' }).waitFor(); await page.waitForTimeout(300)
     await check('New habit', page.getByRole('button', { name: '+ New habit' }), ['Enter'])
     expect(await page.getByRole('dialog', { name: 'Habits' }).count() === 1, 'Habits stays open under New habit after Escape')
+  },
+  async 'keep-state'() {
+    await open()
+    await page.getByRole('button', { name: /^Details for / }).click()
+    const det = page.getByRole('dialog', { name: 'Habit details' }); await det.waitFor()
+    await det.getByRole('button', { name: /^Start \d+ min$/ }).click()
+    await page.getByRole('dialog', { name: 'Timer' }).waitFor(); await page.keyboard.press('Escape')
+    const pill = page.getByRole('button', { name: /^Timer/ }); await pill.waitFor({ timeout: 3000 })
+    await page.locator('button[data-anim="badge"]').click(); await page.getByRole('dialog', { name: 'Habits' }).waitFor()
+    await page.getByRole('dialog', { name: 'Habits' }).getByRole('button', { name: 'Close' }).click(); await page.waitForTimeout(500)
+    await shot('1-after-habits-close')
+    expect(await pill.count() === 1, 'timer pill survives closing the Habits sheet')
+    const y = ago(1)
+    await cell(y).focus(); await page.keyboard.press('ArrowRight'); await page.waitForTimeout(300)
+    await cell(y).click(); const sheet = page.getByRole('dialog', { name: 'Day details' }); await sheet.waitFor()
+    await sheet.getByPlaceholder('Reason').fill('late shift'); await page.keyboard.press('Escape')
+    await sheet.waitFor({ state: 'detached' })
+    await cell(y).click(); await sheet.waitFor()
+    const v = await sheet.getByPlaceholder('Reason').inputValue()
+    await shot('2-reason-after-escape')
+    expect(v === 'late shift', `reason typed then Escape is kept (got "${v}")`)
+    const dd = await doc(); expect(dd.habits[0].reasons?.[y] === 'late shift', 'reason stored in doc')
   },
   async dark() {
     await open()
