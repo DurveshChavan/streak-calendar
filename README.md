@@ -31,6 +31,11 @@ Needs Android 6.0 or newer. To **update**, install the newer APK from Releases o
 
 Tap the badge → **+ New habit** and choose:
 
+<p>
+  <img src="docs/images/app-kinds.webp" width="250" alt="Choosing one of the four habit kinds">
+  <img src="docs/images/app-detail.webp" width="250" alt="Habit details with total, this week and the 8-week trend">
+</p>
+
 | Kind | For | Progress |
 |---|---|---|
 | **Every day** | Something you want daily | Day streak; only a missed day breaks it, a blank day never does |
