@@ -8,6 +8,8 @@ import { store, type Doc, type Habit } from './lib/store'
 import type { AvoidItem, Settings, WeekStart } from './domain/types'
 import { badge } from './domain/badge'
 import { dailyScore } from './domain/score'
+import * as act from './domain/actions'
+import { kindOf, isBuild } from './domain/types'
 import { setSystemBars } from './lib/widget'
 import { makeBackup, parseBackup, mergeBackup, countOf, type Parsed } from './lib/backup'
 
@@ -94,6 +96,7 @@ export default class App extends React.Component<Props, State> {
   applyTheme() { const dark = this.state.theme === 'dark'; document.documentElement.dataset.theme = dark ? 'dark' : 'light'; const m = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement | null; if (m) m.content = dark ? '#030303' : '#B7D8F5'; if (this.barsDark !== dark) { this.barsDark = dark; setSystemBars(dark) } }
   doc(): Doc { const s = this.state; return { habits: s.habits, cur: s.cur, notes: s.notes, theme: s.theme, avoid: s.avoid, settings: s.settings } }
   persist() { store.commit(this.doc()) }
+  apply(f: (d: Doc) => Doc, extra: Partial<State> = {}) { const d = f(this.doc()); this.save({ habits: d.habits, avoid: d.avoid, settings: d.settings, ...extra }) }
   save(patch: Partial<State>, after?: () => void) {
     this.setState(patch as any, () => { this.persist(); if (after) after() })
   }
@@ -128,7 +131,7 @@ export default class App extends React.Component<Props, State> {
     this.save(patch, () => { this.peak = null; if (patch.turn) this.turnGo(); if (patch.snap) this.unsnap(); if (patch.settle) this.settleGo(k); if (peak) this.celebrate(peak, k, src); else if (stung) this.sting() })
     this.buzz(peak ? [12, 50, 18, 50, 28] : stung ? [30, 40, 30, 40, 30] : v === 'x' ? [10, 40, 10] : 12)
   }
-  swipe(k: string, dir: number, src: any, how: string) { const cur = this.habit().marks[k], d = dir > 0 ? 1 : -1; this.setMark(k, cur ? null : d > 0 ? 'x' : 't', true, src, how, d) }
+  swipe(k: string, dir: number, src: any, how: string) { if (!isBuild(this.habit())) return; const cur = this.habit().marks[k], d = dir > 0 ? 1 : -1; this.setMark(k, cur ? null : d > 0 ? 'x' : 't', true, src, how, d) }
   turnDir(from: Mark | null, to: Mark | null) { return to === 't' ? -1 : to === 'x' ? 1 : from === 't' ? 1 : -1 }
   turnGo() { requestAnimationFrame(() => requestAnimationFrame(() => { const t = this.state.turn; if (!t) return; this.setState({ turn: { ...t, ph: 1 } }); clearTimeout(this.tnt); this.tnt = setTimeout(() => this.setState({ turn: null }), 420) })) }
   settleGo(k: string) { clearTimeout(this.stt); this.stt = setTimeout(() => { this.setState({ settle: null, snap: k }); this.unsnap() }, 420) }
@@ -384,6 +387,20 @@ export default class App extends React.Component<Props, State> {
     return { st, nx, weeks, upcoming, dots, sel, dark, off, mt, mx, bd, score }
   }
 
+  counter(label: string, n: number, change: (d: 1 | -1) => void) {
+    const b: React.CSSProperties = { ...sq(48), font: `300 24px/1 ${FONT}`, color: 'var(--ink)' }
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+        <span style={{ font: `400 15px/1.3 ${FONT}` }}>{label}</span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button className="glassfade" aria-label={label + ' minus one'} disabled={!n} onClick={() => change(-1)} style={{ ...b, opacity: n ? 1 : .4 }}>−</button>
+          <span aria-live="polite" style={{ minWidth: 28, textAlign: 'center', font: `400 22px/1 ${FONT}`, fontVariantNumeric: 'tabular-nums' }}>{n}</span>
+          <button className="glassfade" aria-label={label + ' plus one'} onClick={() => change(1)} style={b}>+</button>
+        </span>
+      </div>
+    )
+  }
+
   render() {
     const s = this.state, V = this.renderVals(), H = this.habit(), nH = s.habits.length, hi = this.hIdx(), sw = this.props.showWeekNumbers ?? true
     const { st, nx, weeks, upcoming, dots, sel, dark, off, bd, score } = V
@@ -534,11 +551,25 @@ export default class App extends React.Component<Props, State> {
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {sel.facts.map((f: string) => <span key={f} style={{ padding: '8px 11px', borderRadius: 10, background: 'var(--cell)', border: '1px solid var(--line)', font: `300 13px/1 ${FONT}` }}>{f}</span>)}
             </div>
+{isBuild(H) && (<>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8 }}>
               <button className="glassfade" onClick={e => this.setMark(s.sel!, 't', false, e.currentTarget)} style={{ height: 48, borderRadius: 14, cursor: 'pointer', font: `500 15px/1 ${FONT}`, border: '1px solid var(--line)', background: sel.mark === 't' ? 'var(--tick)' : 'var(--cell)', color: sel.mark === 't' ? '#fff' : 'var(--ink)' }}>✓ Done</button>
               <button className="glassfade" onClick={() => this.setMark(s.sel!, 'x')} style={{ height: 48, borderRadius: 14, cursor: 'pointer', font: `500 15px/1 ${FONT}`, border: '1px solid var(--line)', background: sel.mark === 'x' ? 'var(--cross)' : 'var(--cell)', color: sel.mark === 'x' ? '#fff' : 'var(--ink)' }}>✕ Missed</button>
               <button className="glassfade" onClick={() => this.setMark(s.sel!, null)} style={{ height: 48, padding: '0 14px', borderRadius: 14, cursor: 'pointer', font: `400 14px/1 ${FONT}`, border: '1px solid var(--line)', background: 'var(--cell)' }}>Clear</button>
             </div>
+            {sel.mark === 'x' && <label style={{ display: 'flex', flexDirection: 'column', gap: 6, font: `400 13px/1.3 ${FONT}` }}>
+              Why was it missed? (optional)
+              <input key={H.id + s.sel} defaultValue={H.reasons?.[s.sel] || ''} placeholder="Reason" maxLength={500} onBlur={e => this.apply(d => act.setReason(d, H.id, s.sel!, e.target.value))}
+                style={{ ...input, padding: '12px 14px', font: `300 16px/1.3 ${FONT}` }} />
+            </label>}
+            </>)}
+            {kindOf(H) === 'reduce' && this.counter('Urges resisted', H.urges?.[s.sel] || 0, dl => this.apply(d => act.addUrge(d, H.id, s.sel!, dl)))}
+            {kindOf(H) === 'reduce' && !!H.budget && this.counter('It happened', H.slips?.[s.sel] || 0, dl => this.apply(d => act.addSlip(d, H.id, s.sel!, dl)))}
+            {kindOf(H) === 'number' && <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, font: `400 15px/1.3 ${FONT}` }}>
+              {H.unit || 'Value'}
+              <input key={H.id + s.sel} type="number" inputMode="decimal" defaultValue={H.values?.[s.sel] ?? ''} onBlur={e => { const v = e.target.value.trim(), n = Number(v); this.apply(d => act.setValue(d, H.id, s.sel!, v === '' || !Number.isFinite(n) ? null : n)) }}
+                style={{ ...input, width: 120, height: 48, padding: '0 14px', textAlign: 'right' }} />
+            </label>}
             <textarea key={s.sel} defaultValue={sel.note} placeholder="Add a note for this day…" rows={3} onInput={e => this.noteInput(s.sel!, (e.target as HTMLTextAreaElement).value)} onBlur={() => this.flushNote()}
               style={{ width: '100%', boxSizing: 'border-box', resize: 'none', padding: '12px 14px', borderRadius: 14, border: '1px solid var(--line)', background: 'var(--cell)', color: 'var(--ink)', font: `300 16px/1.4 ${FONT}` }} />
           </div>
