@@ -1,6 +1,6 @@
 {
   "name": "streak-calendar",
-  "version": "2.0.0",
+  "version": "3.1.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,8 +9,9 @@
     "server": "node server/index.mjs",
     "test": "node --experimental-strip-types --test server/sync.test.mjs src/lib/streaks.test.ts src/lib/backup.test.ts",
     "cap:sync": "npm run build && cap sync android",
-    "android:apk": "npm run cap:sync && cd android && ./gradlew assembleDebug",
-    "android:run": "npm run cap:sync && cap run android",
+    "android:apk": "npm run cap:sync && cd android && ./gradlew assembleProdDebug",
+    "android:beta": "npm run cap:sync && cd android && ./gradlew assembleBetaDebug",
+    "android:run": "npm run cap:sync && cap run android --flavor prod",
     "prepare": "git config core.hooksPath .githooks || true",
     "android:install": "bash scripts/install-android.sh"
   },

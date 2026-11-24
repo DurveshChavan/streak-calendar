@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Streak Calendar Beta</string>
+    <string name="title_activity_main">Streak Calendar Beta</string>
+    <string name="widget_label">Streak Calendar Beta</string>
+    <string name="widget_open_app">Open Streak Calendar Beta</string>
+</resources>
