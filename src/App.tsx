@@ -11,6 +11,15 @@ import { dailyScore } from './domain/score'
 import * as act from './domain/actions'
 import { kindOf, isBuild } from './domain/types'
 import HabitEdit from './ui/HabitEdit'
+import TimerScreen from './ui/TimerScreen'
+import Detail from './ui/Detail'
+import Review from './ui/Review'
+import TwoMiss from './ui/TwoMiss'
+import { timerPort } from './platform/timer'
+import { settle, timerKind, timerMinutes, type Timer } from './domain/timer'
+import { restartPrompts, twoMissAfter, type Prompt } from './domain/rules'
+import { weekReview } from './domain/review'
+import { isLastDayOfWeek, weekOf } from './domain/week'
 import { setSystemBars } from './lib/widget'
 import { makeBackup, parseBackup, mergeBackup, countOf, type Parsed } from './lib/backup'
 
@@ -56,6 +65,7 @@ interface State {
   sel: string | null; drag: { k: string; dx: number; dur: number } | null; lastDrag: string | null; snap: string | null
   turn: { k: string; from: Mark | null; dir: number; ph: number } | null; settle: { k: string; from: Mark | null; to: Mark | null; dir: number; dur: number } | null
   toast: { k: string; prev: Mark | null; hid: string; text: string } | null; toastOut: boolean; closing: boolean; instant: boolean
+  timer: Timer | null; view: 'timer' | 'detail' | 'review' | null; twoMiss: Extract<Prompt, { kind: 'twoMiss' }> | null; reviewSeen: string
   hOpen: boolean; hClosing: boolean; hEdit: string | null; confirmId: string | null; avName: string; avRep: string
   syncOpen: boolean; syncUrl: string; syncToken: string
   bkOpen: boolean; bkText: string; bkMsg: string; bkPending: Parsed | null
@@ -73,11 +83,13 @@ export default class App extends React.Component<Props, State> {
     const d = store.doc, t = new Date()
     this.state = { y: t.getFullYear(), m: t.getMonth(), habits: d.habits, cur: d.cur, notes: d.notes, theme: d.theme, avoid: d.avoid, settings: d.settings,
       sel: null, drag: null, lastDrag: null, snap: null, turn: null, settle: null, toast: null, toastOut: false, closing: false, instant: false,
+      timer: null, view: null, twoMiss: null, reviewSeen: localStorage.getItem('streakcal.review') || '',
       hOpen: false, hClosing: false, hEdit: null, confirmId: null, avName: '', avRep: '', syncOpen: false, syncUrl: store.meta.url, syncToken: store.meta.token, bkOpen: false, bkText: '', bkMsg: '', bkPending: null }
     store.onRemote((doc: Doc) => this.setState({ habits: doc.habits, notes: doc.notes, cur: doc.cur, avoid: doc.avoid, settings: doc.settings }))
     store.onStatus(() => this.forceUpdate())
   }
   componentDidMount() {
+    this.syncTimer()
     this.applyTheme(); this.shown = this.nums; document.addEventListener('visibilitychange', this.onVis)
     // Android back closes the open sheet first, instead of leaving the app
     if (Capacitor.isNativePlatform()) NativeApp.addListener('backButton', () => { if (this.state.hEdit) this.setState({ hEdit: null }); else if (this.state.sel) this.closeSheet(); else if (this.state.hOpen) this.closeHabits(); else NativeApp.minimizeApp() })
@@ -88,7 +100,7 @@ export default class App extends React.Component<Props, State> {
   lastDay = keyOf(new Date())
   onVis = () => {
     if (document.visibilityState === 'hidden') this.flushNote()
-    else if (this.today() !== this.lastDay) { this.lastDay = this.today(); this.forceUpdate() }
+    else { this.syncTimer(); if (this.today() !== this.lastDay) { this.lastDay = this.today(); this.forceUpdate() } }
   }
 
   applyTheme() { const dark = this.state.theme === 'dark'; document.documentElement.dataset.theme = dark ? 'dark' : 'light'; const m = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement | null; if (m) m.content = dark ? '#030303' : '#B7D8F5'; if (this.barsDark !== dark) { this.barsDark = dark; setSystemBars(dark) } }
@@ -126,6 +138,7 @@ export default class App extends React.Component<Props, State> {
     else if (!this.rm()) patch.turn = { k, from: prev, dir: sdir || this.turnDir(prev, v), ph: 0 }
     if (toast) { clearTimeout(this.tt); clearTimeout(this.to); patch.toastOut = false; patch.toast = { k, prev, hid: H.id, text: (v === 't' ? 'Done' : v === 'x' ? 'Missed' : 'Cleared') + ' · ' + short(parse(k)) }; this.tt = setTimeout(() => this.hideToast(), 3500) }
     this.peak = peak
+    if (v === 'x') { const tm = twoMissAfter({ ...this.doc(), habits }, H.id, k); if (tm) patch.twoMiss = tm }
     this.save(patch, () => { this.peak = null; if (patch.turn) this.turnGo(); if (patch.snap) this.unsnap(); if (patch.settle) this.settleGo(k); if (peak) this.celebrate(peak, k, src); else if (stung) this.sting() })
     this.buzz(peak ? [12, 50, 18, 50, 28] : stung ? [30, 40, 30, 40, 30] : v === 'x' ? [10, 40, 10] : 12)
   }
@@ -194,9 +207,27 @@ export default class App extends React.Component<Props, State> {
   closeHabits() {
     if (this.state.hClosing || !this.state.hOpen) return
     if (this.rm()) { this.setState({ hOpen: false, hEdit: null, confirmId: null }); return }
-    this.setState({ hClosing: true }); clearTimeout(this.hct); this.hct = setTimeout(() => this.setState({ hOpen: false, hClosing: false, hEdit: null, confirmId: null }), 200)
+    this.setState({ hClosing: true }); clearTimeout(this.hct); this.hct = setTimeout(() => this.setState({ timer: null, view: null, twoMiss: null, reviewSeen: localStorage.getItem('streakcal.review') || '',
+      hOpen: false, hClosing: false, hEdit: null, confirmId: null }), 200)
   }
   pickHabit(id: string, i: number) { const d = Math.sign(i - this.hIdx()); if (d) this.toHabit(id, d); this.closeHabits() }
+  syncTimer = async () => {
+    const done = await timerPort.drain()
+    if (done.length) this.apply(d => done.reduce((acc, t) => settle(acc, t, Date.now()), d))
+    const timer = await timerPort.current()
+    this.setState(st => ({ timer, view: st.view === 'timer' && !timer ? null : st.view }))
+  }
+  startTimer = async (h: Habit) => {
+    const kind = timerKind(h); if (!kind) return
+    try { await timerPort.start({ habitId: h.id, kind, minutes: timerMinutes(h) }) }
+    catch {
+      if (!window.confirm('A timer is already running. Cancel it and start this one?')) return
+      await timerPort.cancel(); await timerPort.start({ habitId: h.id, kind, minutes: timerMinutes(h) })
+    }
+    await this.syncTimer(); this.setState({ view: 'timer', sel: null }); this.buzz(12)
+  }
+  stopTimer = async () => { await timerPort.cancel(); this.setState({ timer: null, view: null }) }
+  doneReview = () => { const w = weekOf(this.today(), this.state.settings.weekStart); localStorage.setItem('streakcal.review', w); this.setState({ reviewSeen: w, view: null }) }
   newId() { return 'h' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6) }
   saveHabit(h: Habit) {
     const isNew = !this.state.habits.some(x => x.id === h.id)
@@ -394,7 +425,9 @@ export default class App extends React.Component<Props, State> {
       sel = { weekday: WD[d.getDay()] + (s.sel === t ? ' · Today' : ''), dayColor: d.getDay() === 0 || hol ? 'var(--red)' : 'var(--ink)', date: d.getDate() + ' ' + MONTHS[d.getMonth()] + ' ' + d.getFullYear(), hol, tithi: tithiLabel(panchang(d)),
         facts: (nH > 1 ? [H.name] : []).concat(['Day ' + dayOfYear(d) + ' of ' + yl, 'Week ' + isoWeek(d)]), mark, note: s.notes[s.sel] || '' }
     }
-    return { st, nx, weeks, upcoming, dots, sel, dark, off, mt, mx, bd, score }
+    const rp = restartPrompts(this.doc(), t)[0], restart = rp ? s.habits.find(h => h.id === rp.habit) : undefined
+    const review = isLastDayOfWeek(t, ws) && s.reviewSeen !== weekOf(t, ws)
+    return { st, nx, weeks, upcoming, dots, sel, dark, off, mt, mx, bd, score, restart, review }
   }
 
   counter(label: string, n: number, change: (d: 1 | -1) => void) {
@@ -515,7 +548,7 @@ export default class App extends React.Component<Props, State> {
           </div>
 
           <div className="rise cards" style={{ animationDelay: '80ms' }}>
-            <section data-anim="monthcard" className="glassfade" style={{ padding: '11px 14px', borderRadius: 20, background: 'var(--card30)', color: '#fff', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', display: 'flex', flexDirection: 'column', gap: 8, minHeight: 0, overflow: 'hidden' }}>
+            <section data-anim="monthcard" className="glassfade tap" role="button" tabIndex={0} aria-label={'Details for ' + H.name} onClick={() => this.setState({ view: 'detail' })} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.setState({ view: 'detail' }) } }} style={{ cursor: 'pointer',  padding: '11px 14px', borderRadius: 20, background: 'var(--card30)', color: '#fff', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', display: 'flex', flexDirection: 'column', gap: 8, minHeight: 0, overflow: 'hidden' }}>
               <div style={lbl}>{kindOf(H) === 'daily' ? 'This month' : 'Progress'}</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {score && <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}><span style={{ font: `300 14px/1.2 ${FONT}` }}>Today</span><span data-anim="score" style={{ font: `400 20px/1 ${FONT}`, fontVariantNumeric: 'tabular-nums', opacity: score.done ? 1 : .6 }}>{score.done} / {score.of}</span></div>}
@@ -526,6 +559,15 @@ export default class App extends React.Component<Props, State> {
               </div>
             </section>
             <section className="glassfade" style={{ padding: '11px 14px', borderRadius: 20, ...glass(), display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
+              {V.restart ? (<>
+                <div style={lbl}>Restart</div>
+                <div style={{ font: `300 14px/1.35 ${FONT}` }}><b style={{ fontWeight: 500 }}>{V.restart!.name}</b> was missed yesterday. A small start today?</div>
+                <button className="glassfade" onClick={() => this.startTimer(V.restart!)} style={{ ...btnY, minHeight: 40, borderRadius: 12, marginTop: 'auto' }}>Start {timerMinutes(V.restart!)} min</button>
+              </>) : V.review ? (<>
+                <div style={lbl}>Weekly review</div>
+                <div style={{ font: `300 14px/1.35 ${FONT}` }}>The week ends today. See how each habit did.</div>
+                <button className="glassfade" onClick={() => this.setState({ view: 'review' })} style={{ ...btnY, minHeight: 40, borderRadius: 12, marginTop: 'auto' }}>Open review</button>
+              </>) : (<>
               <div style={lbl}>Next holidays</div>
               {upcoming.map((h: any) => (
                 <button key={h.key} className={'tap ' + h.cls} data-key={h.key} onClick={() => { const d = parse(h.key); this.go(d.getFullYear(), d.getMonth(), h.key) }} style={{ all: 'unset', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
@@ -533,9 +575,18 @@ export default class App extends React.Component<Props, State> {
                   <span style={{ font: `300 13px/1.25 ${FONT}`, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{h.name}</span>
                 </button>
               ))}
+              </>)}
             </section>
           </div>
         </div>
+
+        {s.timer && s.view !== 'timer' && (() => { const th = s.habits.find(h => h.id === s.timer!.habitId); return th ? (
+          <button className="glassfade" onClick={() => this.setState({ view: 'timer' })} style={{ position: 'fixed', top: 'max(8px, env(safe-area-inset-top))', left: '50%', transform: 'translateX(-50%)', zIndex: 14, border: 0, borderRadius: 12, padding: '8px 14px', background: '#14161A', color: '#F4F6FA', font: `500 13px/1 ${FONT}`, cursor: 'pointer' }}>Timer · {th.name}</button>
+        ) : null })()}
+        {s.view === 'timer' && s.timer && (() => { const th = s.habits.find(h => h.id === s.timer!.habitId); return th ? <TimerScreen timer={s.timer} habit={th} onStop={this.stopTimer} onClose={() => this.setState({ view: null })} onEnd={this.syncTimer} /> : null })()}
+        {s.view === 'detail' && <Detail habit={H} today={this.today()} ws={s.settings.weekStart} onStart={() => this.startTimer(H)} onEdit={() => this.setState({ view: null, hOpen: true, hEdit: H.id })} onClose={() => this.setState({ view: null })} />}
+        {s.view === 'review' && <Review rows={weekReview(this.doc(), this.today())} onDone={this.doneReview} onClose={() => this.setState({ view: null })} />}
+        {s.twoMiss && <TwoMiss name={s.habits.find(h => h.id === s.twoMiss!.habit)?.name || ''} prompt={s.twoMiss} onChange={() => this.setState({ twoMiss: null, sel: null, hOpen: true, hEdit: s.twoMiss!.habit })} onKeep={() => this.setState({ twoMiss: null })} />}
 
         {s.toast && (
           <div role="status" style={{ position: 'fixed', left: '50%', bottom: 'calc(max(18px, env(safe-area-inset-bottom)) + var(--kb, 0px))', transform: 'translateX(-50%)', zIndex: 15, display: 'flex', alignItems: 'center', gap: 12, padding: '8px 8px 8px 16px', borderRadius: 16, background: '#14161A', color: '#F4F6FA', boxShadow: '0 8px 24px rgba(0,0,0,.25)', animation: s.toastOut ? 'toastOut .18s ease forwards' : 'toastIn .24s cubic-bezier(.2,.8,.2,1)', whiteSpace: 'nowrap' }}>
@@ -661,6 +712,10 @@ export default class App extends React.Component<Props, State> {
               <select value={s.settings.weekStart} onChange={e => this.save({ settings: { ...s.settings, weekStart: +e.target.value as WeekStart } })} style={{ font: `400 13px/1 ${FONT}`, color: 'inherit', background: 'var(--cell)', border: '1px solid var(--line)', borderRadius: 9, padding: '6px 8px' }}>
                 {WD.map((d, i) => <option key={i} value={i}>{d}</option>)}
               </select>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, font: `300 13px/1.3 ${FONT}` }}>
+              Restart and two-miss prompts
+              <input type="checkbox" checked={s.settings.missRules} onChange={e => this.save({ settings: { ...s.settings, missRules: e.target.checked } })} style={{ width: 20, height: 20 }} />
             </label>
             <button className="tap" onClick={() => this.setState({ syncOpen: !s.syncOpen })} aria-expanded={s.syncOpen} style={{ all: 'unset', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, font: `300 13px/1.3 ${FONT}` }}>
               <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: '50%', flex: 'none', background: store.state === 'idle' ? 'var(--tick)' : store.state === 'off' ? 'var(--line)' : store.state === 'syncing' ? 'var(--c10)' : 'var(--cross)' }} />
