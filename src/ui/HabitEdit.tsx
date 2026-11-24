@@ -28,7 +28,7 @@ export default function HabitEdit({ old, newId, onSave, onCancel, onLater }: Pro
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-        <div style={{ font: `300 28px/1.1 ${FONT}`, letterSpacing: '-.02em' }}>{old ? 'Edit habit' : 'New habit'}</div>
+        <h2 style={{ margin: 0, font: `300 28px/1.1 ${FONT}`, letterSpacing: '-.02em' }}>{old ? 'Edit habit' : 'New habit'}</h2>
         <button className="glassfade" aria-label="Close" onClick={onCancel} style={{ ...sq(44), font: '300 24px/1 sans-serif', color: 'var(--ink)' }}>×</button>
       </div>
       {field('Name', 'name', { maxLength: 24, placeholder: 'Read 10 pages', autoFocus: !old })}

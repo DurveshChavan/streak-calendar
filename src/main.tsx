@@ -7,7 +7,9 @@ import './styles.css'
 import App from './App'
 import { store } from './lib/store'
 import { initKeyboard } from './lib/keyboard'
+import { initModals } from './ui/modal'
 
 createRoot(document.getElementById('root')!).render(<App />)
 store.start()
 initKeyboard()
+initModals()

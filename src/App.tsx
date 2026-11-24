@@ -580,12 +580,12 @@ export default class App extends React.Component<Props, State> {
 
         {s.sel && sel && (<>
           <div {...scrim(s.closing, () => this.closeSheet())} />
-          <div role="dialog" aria-label="Day details" style={{ ...sheet(true, s.closing), gap: 14 }}>
+          <div role="dialog" aria-modal="true" aria-label="Day details" style={{ ...sheet(true, s.closing), gap: 14 }}>
             <div style={{ width: 40, height: 4, borderRadius: 2, background: 'var(--line)', margin: '0 auto' }} />
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                 <div style={{ font: `600 12px/1 ${FONT}`, letterSpacing: '.08em', textTransform: 'uppercase', color: sel.dayColor }}>{sel.weekday}</div>
-                <div style={{ font: `300 30px/1.1 ${FONT}`, letterSpacing: '-.02em' }}>{sel.date}</div>
+                <h2 style={{ margin: 0, font: `300 30px/1.1 ${FONT}`, letterSpacing: '-.02em' }}>{sel.date}</h2>
               </div>
               <button className="glassfade" aria-label="Close" onClick={() => this.closeSheet()} style={{ ...sq(44), font: '300 24px/1 sans-serif' }}>×</button>
             </div>
@@ -623,17 +623,17 @@ export default class App extends React.Component<Props, State> {
 
         {s.hEdit && (<>
           <div data-scrim="1" onClick={() => this.setState({ hEdit: null })} style={{ position: 'fixed', inset: 0, zIndex: 22, background: 'rgba(0,0,0,.3)' }} />
-          <div role="dialog" aria-label={s.hEdit === 'new' ? 'New habit' : 'Edit habit'} style={{ ...sheet(true, false), zIndex: 23 }}>
+          <div role="dialog" aria-modal="true" aria-label={s.hEdit === 'new' ? 'New habit' : 'Edit habit'} style={{ ...sheet(true, false), zIndex: 23 }}>
             <HabitEdit key={s.hEdit} old={s.habits.find(h => h.id === s.hEdit)} newId={this.newId()} onSave={h => this.saveHabit(h)} onCancel={() => this.setState({ hEdit: null })}
               onLater={nActive > 1 ? () => this.setLater(s.hEdit!, true) : undefined} />
           </div>
         </>)}
         {s.hOpen && (<>
           <div {...scrim(s.hClosing, () => this.closeHabits())} />
-          <div role="dialog" aria-label="Habits" style={{ ...sheet(true, s.hClosing), gap: 12 }}>
+          <div role="dialog" aria-modal="true" aria-label="Habits" style={{ ...sheet(true, s.hClosing), gap: 12 }}>
             <div style={{ width: 40, height: 4, borderRadius: 2, background: 'var(--line)', margin: '0 auto' }} />
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-              <div style={{ font: `300 28px/1.1 ${FONT}`, letterSpacing: '-.02em' }}>Habits</div>
+              <h2 style={{ margin: 0, font: `300 28px/1.1 ${FONT}`, letterSpacing: '-.02em' }}>Habits</h2>
               <button className="glassfade" aria-label="Close" onClick={() => this.closeHabits()} style={{ ...sq(44), font: '300 24px/1 sans-serif' }}>×</button>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

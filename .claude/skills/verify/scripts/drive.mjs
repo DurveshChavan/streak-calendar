@@ -73,6 +73,32 @@ const journeys = {
     fs.writeFileSync(path.join(out, 'server-records.json'), JSON.stringify(r, null, 1))
     expect(r.changes.some(c => c.key.startsWith('mark:') && c.key.includes(today) && c.value === 't'), `server holds mark for ${today}`)
   },
+  async 'a11y-dialogs'() {
+    await open()
+    const focused = () => page.evaluate(() => { const e = document.activeElement; return { label: e?.getAttribute('aria-label') || e?.textContent?.trim().slice(0, 24), dialog: e?.closest('[role=dialog]')?.getAttribute('aria-label') || null } })
+    const check = async (name, opener, openKeys) => {
+      await opener.focus(); for (const k of openKeys) await page.keyboard.press(k)
+      const dlg = page.getByRole('dialog', { name }); await dlg.waitFor(); await page.waitForTimeout(400)
+      expect(await dlg.getAttribute('aria-modal') === 'true', `${name}: aria-modal="true"`)
+      expect((await focused()).dialog === name, `${name}: focus moves into the dialog (${JSON.stringify(await focused())})`)
+      let out = null
+      for (let i = 0; i < 30 && !out; i++) { await page.keyboard.press('Tab'); const f = await focused(); if (f.dialog !== name) out = f }
+      expect(!out, `${name}: Tab stays inside` + (out ? ` (escaped to ${JSON.stringify(out)})` : ''))
+      for (let i = 0; i < 30 && !out; i++) { await page.keyboard.press('Shift+Tab'); const f = await focused(); if (f.dialog !== name) out = f }
+      expect(!out, `${name}: Shift+Tab stays inside`)
+      await shot('dialog-' + name.replace(/\W+/g, '-'))
+      await page.keyboard.press('Escape'); await dlg.waitFor({ state: 'detached', timeout: 2000 }).catch(() => {})
+      expect(await dlg.count() === 0, `${name}: Escape closes it`)
+      const back = await opener.evaluate(e => e === document.activeElement)
+      expect(back, `${name}: focus returns to the opener (${JSON.stringify(await focused())})`)
+    }
+    await check('Day details', cell(today), ['Enter'])
+    await check('Habits', page.locator('button[data-anim="badge"]'), ['Enter'])
+    await check('Habit details', page.getByRole('button', { name: /^Details for / }), ['Enter'])
+    await page.locator('button[data-anim="badge"]').press('Enter'); await page.getByRole('dialog', { name: 'Habits' }).waitFor(); await page.waitForTimeout(300)
+    await check('New habit', page.getByRole('button', { name: '+ New habit' }), ['Enter'])
+    expect(await page.getByRole('dialog', { name: 'Habits' }).count() === 1, 'Habits stays open under New habit after Escape')
+  },
   async dark() {
     await open()
     await page.getByRole('button', { name: 'Switch to dark mode' }).click()
