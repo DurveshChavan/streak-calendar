@@ -46,6 +46,10 @@ node .claude/skills/verify/scripts/drive.mjs <journey> [evidence-dir]
 | `v2-upgrade` | A 2.0 `streakcal.v2` doc seeded before first load opens as Build daily: total, missed day, day note kept, `settings.weekStart=0`. |
 | `sync` | Connect to the launched server from the Habits sheet, label reaches "Synced · hh:mm", server holds the `mark:` record. |
 | `dark` | Theme toggle switches to dark and is stored. Run any journey with `DARK=1` for a dark color scheme. |
+| `a11y-dialogs` | Every sheet takes focus, traps Tab, closes on Escape and returns focus (see `features/dialogs.md`). |
+| `keep-state` | Closing the Habits sheet keeps a running timer's pill; a reason typed then closed with Escape is saved. |
+
+Journeys run with reduced motion by default. Run each one again with `MOTION=1`: some close paths (Habits sheet, day sheet) only take their animated branch with motion on.
 
 Stable handles (from `src/App.tsx`), use these when adding journeys:
 

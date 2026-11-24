@@ -269,7 +269,7 @@ export default class App extends React.Component<Props, State> {
     if (t) t.animate([{ transform: `translateX(${dir * 14}px)`, opacity: 0 }, { transform: 'none', opacity: 1 }], o)
   }
   hideToast() { clearTimeout(this.tt); if (!this.state.toast) return; if (this.rm()) { this.setState({ toast: null, toastOut: false }); return } this.setState({ toastOut: true }); clearTimeout(this.to); this.to = setTimeout(() => this.setState({ toast: null, toastOut: false }), 180) }
-  closeSheet() { this.flushNote(); if (this.state.closing || !this.state.sel) return; if (this.rm()) { this.setState({ sel: null }); return } this.setState({ closing: true }); clearTimeout(this.ct); this.ct = setTimeout(() => this.setState({ sel: null, closing: false }), 200) }
+  closeSheet() { const a = document.activeElement; if (a instanceof HTMLElement && a.closest('[role="dialog"]')) a.blur(); this.flushNote(); if (this.state.closing || !this.state.sel) return; if (this.rm()) { this.setState({ sel: null }); return } this.setState({ closing: true }); clearTimeout(this.ct); this.ct = setTimeout(() => this.setState({ sel: null, closing: false }), 200) }
   noteInput(k: string, v: string) { this.noteDraft = { k, v }; clearTimeout(this.nt); this.nt = setTimeout(() => this.flushNote(), 400) }
   flushNote() {
     clearTimeout(this.nt); const d = this.noteDraft; this.noteDraft = null

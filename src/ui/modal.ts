@@ -55,7 +55,7 @@ export function initModals() {
     if (!t) return
     if (e.key === 'Escape') {
       const c = [...t.dialog.querySelectorAll<HTMLElement>('[aria-label="Close"]')].find(visible)
-      if (c) { e.preventDefault(); c.click() }
+      if (c) { e.preventDefault(); const a = document.activeElement; if (a instanceof HTMLElement && t.dialog.contains(a)) a.blur(); c.click() }
       return
     }
     if (e.key !== 'Tab') return
